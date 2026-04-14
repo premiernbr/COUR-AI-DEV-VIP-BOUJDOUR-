@@ -24,8 +24,10 @@
     "@types/jsonwebtoken": "^9.0.8",
     "@types/node": "^22.10.2",
     "@types/pg": "^8.11.11",
+    "@types/supertest": "^2.0.16",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
-    "vitest": "^1.6.1"
+    "vitest": "^1.6.1",
+    "supertest": "^6.3.4"
   }
 }

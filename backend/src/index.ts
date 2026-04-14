@@ -1660,4 +1660,9 @@ const gracefulShutdown = async () => {
 process.on("SIGINT", gracefulShutdown);
 process.on("SIGTERM", gracefulShutdown);
 
-void start();
+// Only auto-start in non-test environments to allow integration tests to import app without DB setup/listen.
+if (process.env.NODE_ENV !== "test") {
+  void start();
+}
+
+export { app, start };

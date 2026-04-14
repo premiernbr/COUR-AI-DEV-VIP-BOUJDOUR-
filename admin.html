@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>لوحة إدارة الطلبات | جديد بوجدور</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="admin.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>لوحة إدارة الطلبات</h1>
+      <p>متابعة الطلبات الواردة من الموقع</p>
+    </div>
+    <a class="home-link" href="/index.html">العودة للموقع</a>
+  </header>
+
+  <main class="layout">
+    <section class="auth-card" id="authCard">
+      <h2>تسجيل دخول الإدارة</h2>
+      <div class="auth-grid">
+        <div class="field">
+          <label for="username">اسم المستخدم</label>
+          <input id="username" type="text" placeholder="admin" />
+        </div>
+        <div class="field">
+          <label for="password">كلمة المرور</label>
+          <div class="input-wrap">
+            <input id="password" type="password" placeholder="********" />
+            <button type="button" class="toggle-visibility" data-target="password">👁</button>
+          </div>
+        </div>
+        <div class="field">
+          <label for="otpCode">رمز التحقق الثنائي </label>
+          <div class="input-wrap">
+            <input id="otpCode" type="password" placeholder="123456" />
+            <button type="button" class="toggle-visibility" data-target="otpCode">👁</button>
+          </div>
+        </div>
+      </div>
+      <div class="actions">
+        <button id="loginBtn" type="button">دخول</button>
+        <button id="logoutBtn" type="button" class="ghost-btn">خروج</button>
+      </div>
+      <p id="authMsg" class="msg"></p>
+    </section>
+
+    <section class="auth-card hidden" id="securityCard">
+      <h2>إعداد التحقق الثنائي </h2>
+      <p class="hint">هذه الخطوة تزيد أمان الحساب: امسح رمز QR بالتطبيق ثم أدخل الكود المكون من 6 أرقام.</p>
+      <div class="actions">
+        <button id="setup2faBtn" type="button">إنشاء رمز QR</button>
+        <button id="enable2faBtn" type="button">تفعيل الحماية الثنائية</button>
+        <button id="disable2faBtn" type="button" class="ghost-btn">تعطيل الحماية الثنائية</button>
+      </div>
+      <div class="auth-grid">
+        <div class="field">
+          <label for="twoFaSecret">الكود السري </label>
+          <input id="twoFaSecret" type="text" placeholder="سيظهر بعد إنشاء QR" />
+        </div>
+        <div class="field">
+          <label for="twoFaCode">رمز تطبيق المصادقة</label>
+          <div class="input-wrap">
+            <input id="twoFaCode" type="password" placeholder="123456" />
+            <button type="button" class="toggle-visibility" data-target="twoFaCode">👁</button>
+          </div>
+        </div>
+      </div>
+      <div class="qr-card">
+        <div id="twoFaQr" class="qr-box"></div>
+        <p id="twoFaUri" class="mono"></p>
+      </div>
+      <p id="twoFaMsg" class="msg"></p>
+    </section>
+
+    <section id="protectedArea" class="hidden">
+      <section class="controls">
+        <div class="field">
+          <label for="statusFilter">تصفية الحالة</label>
+          <select id="statusFilter">
+            <option value="">جميع الحالات</option>
+            <option value="new">جديد</option>
+            <option value="contacted">تم التواصل</option>
+            <option value="closed">مغلق</option>
+          </select>
+        </div>
+        <div class="actions">
+          <button id="loadBtn" type="button">تحميل الطلبات</button>
+        </div>
+        <p id="msg" class="msg"></p>
+      </section>
+
+      <section class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>رقم الطلب</th>
+              <th>التاريخ</th>
+              <th>العميل</th>
+              <th>الهاتف</th>
+              <th>المدينة</th>
+              <th>المنتج</th>
+              <th>الميزانية</th>
+              <th>التفاصيل</th>
+              <th>الحالة</th>
+              <th>القرار</th>
+            </tr>
+          </thead>
+          <tbody id="rows">
+            <tr><td colspan="10" class="empty">لا توجد بيانات بعد</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>رقم السجل</th>
+              <th>الوقت</th>
+              <th>العملية</th>
+              <th>المستخدم</th>
+              <th>IP</th>
+            </tr>
+          </thead>
+          <tbody id="auditRows">
+            <tr><td colspan="5" class="empty">لا توجد سجلات تدقيق</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </section>
+  </main>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="admin.js"></script>
+</body>
+</html>

@@ -343,6 +343,10 @@ async function sendOrder(e) {
   e.preventDefault();
   const btn = document.getElementById('submitBtn');
   let captchaToken = '';
+  const maxDetailsWords = 120;
+  const maxNameWords = 10;
+  const hasDangerous = (text) => /<|>|`|script|javascript:|data:/i.test(text);
+  const countWords = (text) => text.trim().split(/\s+/).filter(Boolean).length;
 
   if (captchaEnabled) {
     if (!window.turnstile || turnstileWidgetId === null) {
@@ -368,6 +372,24 @@ async function sendOrder(e) {
     source: 'website',
     captchaToken
   };
+
+  // Frontend validation: word limits and basic payload hygiene
+  if (countWords(payload.fullName) > maxNameWords) {
+    setModalContent('الاسم طويل جدًا', `الرجاء اختصار الاسم (بحد أقصى ${maxNameWords} كلمات).`);
+    document.getElementById('modalBg').classList.add('open');
+    return;
+  }
+  if (countWords(payload.details) > maxDetailsWords) {
+    setModalContent('التفاصيل طويلة جدًا', `الرجاء تقليل التفاصيل إلى ${maxDetailsWords} كلمة كحد أقصى.`);
+    document.getElementById('modalBg').classList.add('open');
+    return;
+  }
+  const fieldsToCheck = [payload.fullName, payload.city, payload.details, payload.productType, payload.budgetRange];
+  if (fieldsToCheck.some(hasDangerous)) {
+    setModalContent('تنسيق غير مقبول', 'يُرجى عدم إدخال أكواد أو رموز خاصة قد تعطل النظام.');
+    document.getElementById('modalBg').classList.add('open');
+    return;
+  }
 
   btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الإرسال...';
   btn.disabled = true;

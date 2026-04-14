@@ -26,15 +26,22 @@ const app = Fastify({
 // Accept classic HTML form submissions (application/x-www-form-urlencoded)
 await app.register(formbody);
 
-const jwtSecretEnv = process.env.JWT_SECRET;
-if (!jwtSecretEnv) {
-  throw new Error("JWT_SECRET is required");
+function requireEnv(name: string, options?: { minLength?: number; message?: string }): string {
+  const value = (process.env[name] ?? "").trim();
+  if (!value || (options?.minLength && value.length < options.minLength)) {
+    throw new Error(options?.message ?? `${name} is required`);
+  }
+  return value;
 }
-const jwtSecret: jwt.Secret = jwtSecretEnv;
+
+const jwtSecret: jwt.Secret = requireEnv("JWT_SECRET", { minLength: 12, message: "JWT_SECRET is required and must be strong" });
 const accessTokenTtlSeconds = Number(process.env.ACCESS_TOKEN_TTL_SECONDS ?? "900");
 const refreshTokenDays = Number(process.env.REFRESH_TOKEN_DAYS ?? "7");
-const adminSeedUsername = process.env.ADMIN_USERNAME ?? "admin";
-const adminSeedPassword = process.env.ADMIN_PASSWORD ?? "ChangeMe123!";
+const adminSeedUsername = requireEnv("ADMIN_USERNAME");
+const adminSeedPassword = requireEnv("ADMIN_PASSWORD", {
+  minLength: 12,
+  message: "ADMIN_PASSWORD is required and should be at least 12 characters"
+});
 const adminSyncPasswordOnStart = (process.env.ADMIN_SYNC_PASSWORD_ON_START ?? "true").toLowerCase() === "true";
 const lockoutMaxAttempts = Number(process.env.ADMIN_LOCKOUT_MAX_ATTEMPTS ?? "5");
 const lockoutMinutes = Number(process.env.ADMIN_LOCKOUT_MINUTES ?? "15");
@@ -43,6 +50,10 @@ const leadsRateLimitMax = Number(process.env.LEADS_RATE_LIMIT_MAX ?? "5");
 const turnstileEnabled = (process.env.TURNSTILE_ENABLED ?? "false").toLowerCase() === "true";
 const turnstileSiteKey = process.env.TURNSTILE_SITE_KEY ?? "";
 const turnstileSecretKey = process.env.TURNSTILE_SECRET_KEY ?? "";
+
+if (turnstileEnabled && (!turnstileSiteKey || !turnstileSecretKey)) {
+  throw new Error("TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY are required when TURNSTILE_ENABLED=true");
+}
 const allowedStatuses = new Set(["new", "contacted", "closed"]);
 const leadRateLimitStore = new Map<string, { count: number; resetAt: number }>();
 

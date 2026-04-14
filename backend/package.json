@@ -7,7 +7,8 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts",
-    "seed": "tsx src/seed.ts"
+    "seed": "tsx src/seed.ts",
+    "test": "vitest run"
   },
   "dependencies": {
     "@fastify/formbody": "^8.0.0",
@@ -24,6 +25,7 @@
     "@types/node": "^22.10.2",
     "@types/pg": "^8.11.11",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "vitest": "^1.6.1"
   }
 }

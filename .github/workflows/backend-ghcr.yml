@@ -13,6 +13,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+    env:
+      IMAGE_NAME: ghcr.io/premiernbr/cour-ai-dev-vip-boujdour-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -33,6 +35,8 @@ jobs:
           context: ./backend
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ghcr.io/${{ github.repository }}/jd-boujdour-api:latest
+          tags: |
+            ${{ env.IMAGE_NAME }}:latest
+            ${{ env.IMAGE_NAME }}:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

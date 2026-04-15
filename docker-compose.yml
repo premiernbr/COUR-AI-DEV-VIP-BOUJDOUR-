@@ -20,6 +20,8 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: jd-boujdour-api
+    ports:
+      - "3000:3000"
     environment:
       NODE_ENV: ${APP_NODE_ENV}
       PORT: ${APP_PORT}

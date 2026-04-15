@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
 import Fastify, { FastifyReply, FastifyRequest } from "fastify";
 import formbody from "@fastify/formbody";
+import cors from "@fastify/cors";
 import jwt from "jsonwebtoken";
 import { authenticator } from "otplib";
 import { Pool, PoolClient } from "pg";
@@ -25,6 +26,13 @@ const app = Fastify({
 
 // Accept classic HTML form submissions (application/x-www-form-urlencoded)
 await app.register(formbody);
+await app.register(cors, {
+  origin: (process.env.CORS_ORIGIN ?? "*")
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean),
+  credentials: true
+});
 
 function requireEnv(name: string, options?: { minLength?: number; message?: string }): string {
   const value = (process.env[name] ?? "").trim();

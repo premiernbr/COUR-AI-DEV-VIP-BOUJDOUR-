@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import Fastify, { FastifyReply, FastifyRequest } from "fastify";
 import formbody from "@fastify/formbody";
 import cors from "@fastify/cors";
+import rateLimit from "@fastify/rate-limit";
 import jwt from "jsonwebtoken";
 import { authenticator } from "otplib";
 import { Pool, PoolClient } from "pg";
@@ -32,6 +33,13 @@ await app.register(cors, {
     .map((o) => o.trim())
     .filter(Boolean),
   credentials: true
+});
+
+const adminRateLimitMax = Number(process.env.ADMIN_RATE_LIMIT_MAX ?? "30"); // per window
+const adminRateLimitWindowMs = Number(process.env.ADMIN_RATE_LIMIT_WINDOW_MS ?? "60000");
+
+await app.register(rateLimit, {
+  global: false
 });
 
 function requireEnv(name: string, options?: { minLength?: number; message?: string }): string {
@@ -1498,7 +1506,12 @@ app.post("/api/v1/admin/auth/2fa/disable", { preHandler: authenticateAdmin }, as
   return reply.send({ ok: true, twoFactorEnabled: false });
 });
 
-app.get("/api/v1/admin/leads", { preHandler: authenticateAdmin }, async (request, reply) => {
+app.get(
+  "/api/v1/admin/leads",
+  {
+    preHandler: [rateLimit({ max: adminRateLimitMax, timeWindow: adminRateLimitWindowMs }), authenticateAdmin]
+  },
+  async (request, reply) => {
   const status = typeof request.query === "object" && request.query !== null
     ? (request.query as Record<string, unknown>).status
     : undefined;
@@ -1555,9 +1568,15 @@ app.get("/api/v1/admin/leads", { preHandler: authenticateAdmin }, async (request
     request.log.error(error, "Failed to fetch admin leads");
     return reply.code(500).send({ error: "INTERNAL_ERROR" });
   }
-});
+  }
+);
 
-app.patch("/api/v1/admin/leads/:id/status", { preHandler: authenticateAdmin }, async (request, reply) => {
+app.patch(
+  "/api/v1/admin/leads/:id/status",
+  {
+    preHandler: [rateLimit({ max: adminRateLimitMax, timeWindow: adminRateLimitWindowMs }), authenticateAdmin]
+  },
+  async (request, reply) => {
   const admin = (request as AdminRequest).admin;
   const params = request.params as { id?: string };
   const body = request.body as { status?: string; note?: string } | undefined;
@@ -1619,9 +1638,15 @@ app.patch("/api/v1/admin/leads/:id/status", { preHandler: authenticateAdmin }, a
     request.log.error(error, "Failed to update lead status");
     return reply.code(500).send({ error: "INTERNAL_ERROR" });
   }
-});
+  }
+);
 
-app.get("/api/v1/admin/audit-logs", { preHandler: authenticateAdmin }, async (request, reply) => {
+app.get(
+  "/api/v1/admin/audit-logs",
+  {
+    preHandler: [rateLimit({ max: adminRateLimitMax, timeWindow: adminRateLimitWindowMs }), authenticateAdmin]
+  },
+  async (request, reply) => {
   const limitRaw = typeof request.query === "object" && request.query !== null
     ? (request.query as Record<string, unknown>).limit
     : undefined;
@@ -1638,7 +1663,8 @@ app.get("/api/v1/admin/audit-logs", { preHandler: authenticateAdmin }, async (re
   );
 
   return reply.send({ ok: true, count: result.rowCount, items: result.rows });
-});
+  }
+);
 
 const port = Number(process.env.PORT ?? 3000);
 const host = "0.0.0.0";

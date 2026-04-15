@@ -33,6 +33,10 @@ jobs:
         working-directory: backend
         run: npm ci
 
+      - name: Security audit (high severity)
+        working-directory: backend
+        run: npm audit --omit=dev --audit-level=high
+
       - name: Run backend tests
         working-directory: backend
         run: npm test

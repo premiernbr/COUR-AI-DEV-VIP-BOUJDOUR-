@@ -86,6 +86,7 @@ CREATE TABLE IF NOT EXISTS products (
   description TEXT,
   price NUMERIC(12, 2) NOT NULL,
   currency TEXT NOT NULL DEFAULT 'MAD',
+  popularity INT NOT NULL DEFAULT 0,
   category_id BIGINT REFERENCES categories(id) ON DELETE SET NULL,
   main_image_url TEXT,
   tags TEXT[],

@@ -5,27 +5,10 @@
 - `api`: Node.js + TypeScript + Fastify.
 - `db`: PostgreSQL with persistent Docker volume.
 
-## Environment separation
-- `.env.dev`
-- `.env.staging`
-- `.env.prod`
-
-Select environment at runtime with `--env-file`.
-
-## Run
-```powershell
-docker compose --env-file ./.env.dev up --build -d
-```
-
-Staging:
-```powershell
-docker compose --env-file ./.env.staging up --build -d
-```
-
-Production:
-```powershell
-docker compose --env-file ./.env.prod up --build -d
-```
+## Environment
+- `.env.example` (قائمة المتغيرات)
+- `.env.compose` للتشغيل المحلي السريع
+- استخدم `--env-file` لاختيار بيئة أخرى عند الحاجة.
 
 ## Endpoints
 - Website: `http://localhost:8080`
@@ -46,6 +29,8 @@ docker compose --env-file ./.env.prod up --build -d
 - Lead endpoint protection:
   - Rate limit by IP
   - Optional Turnstile captcha validation
+- Admin endpoints rate limit via `ADMIN_RATE_LIMIT_MAX` / `ADMIN_RATE_LIMIT_WINDOW_MS`
+- CORS قابل للضبط عبر `CORS_ORIGIN` (قائمة origins مفصولة بفواصل، اضبطه على نطاق GitHub Pages عند النشر العام).
 
 ## Captcha
 In env file:
@@ -54,6 +39,22 @@ In env file:
 - `TURNSTILE_SECRET_KEY=...`
 
 If enabled, the form auto-loads captcha from `/api/v1/public-config`.
+
+## Quick start (Docker Compose)
+```bash
+docker compose --env-file .env.compose up -d db
+docker compose --env-file .env.compose run --rm -v ${PWD}/backend/src:/app/src -v ${PWD}/database:/database api npm run seed
+docker compose --env-file .env.compose up -d api web
+```
+Health: `http://localhost:3000/health` — Front: `http://localhost:8080`
+
+## Testing
+```bash
+cd backend
+npm ci
+npm test -- --runInBand
+```
+CI pipeline: gitleaks → npm audit (high) → OSV Scanner → tests → build → buildx/SBOM/Provenance.
 
 ## Stop
 ```powershell

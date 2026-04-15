@@ -37,6 +37,11 @@ jobs:
         working-directory: backend
         run: npm audit --omit=dev --audit-level=high
 
+      - name: OSV scanner (lockfile)
+        uses: google/osv-scanner-action@v1
+        with:
+          scan-args: "--lockfile=backend/package-lock.json"
+
       - name: Run backend tests
         working-directory: backend
         run: npm test

@@ -11,21 +11,18 @@ process.env.LEADS_RATE_LIMIT_WINDOW_MS = "60000";
 process.env.LEADS_RATE_LIMIT_MAX = "5";
 process.env.TURNSTILE_ENABLED = "false";
 
-let queryMock: any;
+const queryMock = vi.fn();
 
-vi.mock("../src/db.js", () => {
-  queryMock = vi.fn();
-  return {
-    pool: {
-      query: (...args: unknown[]) => queryMock(...args),
-      end: vi.fn()
-    },
-    withTransaction: async (fn: any) =>
-      fn({
-        query: (...args: unknown[]) => queryMock(...args)
-      })
-  };
-});
+vi.mock("../src/db.js", () => ({
+  pool: {
+    query: (...args: unknown[]) => queryMock(...args),
+    end: vi.fn()
+  },
+  withTransaction: async (fn: any) =>
+    fn({
+      query: (...args: unknown[]) => queryMock(...args)
+    })
+}));
 
 import { app } from "../src/index.js";
 

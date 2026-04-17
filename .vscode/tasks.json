@@ -1,0 +1,104 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Local: Compose Up (build)",
+      "type": "shell",
+      "command": "docker compose --env-file .env.compose up -d --build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Local: Compose Down",
+      "type": "shell",
+      "command": "docker compose down",
+      "problemMatcher": []
+    },
+    {
+      "label": "Backend: Build (tsc)",
+      "type": "shell",
+      "command": "npm run build",
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "problemMatcher": ["$tsc"]
+    },
+    {
+      "label": "Backend: Dev (tsx watch)",
+      "type": "shell",
+      "command": "npm run dev",
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "Backend: Seed (local compose db)",
+      "type": "shell",
+      "command": "docker compose --env-file .env.compose run --rm -v ${workspaceFolder}/backend/src:/app/src -v ${workspaceFolder}/database:/database api npm run seed",
+      "problemMatcher": []
+    },
+    {
+      "label": "Supabase: Projects List",
+      "type": "shell",
+      "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/supabase.ps1 projects:list",
+      "problemMatcher": []
+    },
+    {
+      "label": "Supabase: Init (local config)",
+      "type": "shell",
+      "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/supabase.ps1 init",
+      "problemMatcher": []
+    },
+    {
+      "label": "Supabase: Link Project",
+      "type": "shell",
+      "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/supabase.ps1 link",
+      "problemMatcher": []
+    },
+    {
+      "label": "Supabase: DB Push (migrations)",
+      "type": "shell",
+      "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/supabase.ps1 db:push",
+      "problemMatcher": []
+    },
+    {
+      "label": "Supabase: DB Tables",
+      "type": "shell",
+      "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/supabase.ps1 db:tables",
+      "problemMatcher": []
+    },
+    {
+      "label": "Supabase: DB Row Counts",
+      "type": "shell",
+      "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/supabase.ps1 db:counts",
+      "problemMatcher": []
+    },
+    {
+      "label": "Supabase: DB Diff (new migration)",
+      "type": "shell",
+      "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/supabase.ps1 db:diff",
+      "problemMatcher": []
+    },
+    {
+      "label": "Supabase: Functions List",
+      "type": "shell",
+      "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/supabase.ps1 functions:list",
+      "problemMatcher": []
+    },
+    {
+      "label": "Supabase: Functions Deploy",
+      "type": "shell",
+      "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/supabase.ps1 functions:deploy",
+      "problemMatcher": []
+    },
+    {
+      "label": "Supabase: Config Push",
+      "type": "shell",
+      "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/supabase.ps1 config:push",
+      "problemMatcher": []
+    },
+    {
+      "label": "Supabase: Generate Types (stdout)",
+      "type": "shell",
+      "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/supabase.ps1 types:gen",
+      "problemMatcher": []
+    }
+  ]
+}

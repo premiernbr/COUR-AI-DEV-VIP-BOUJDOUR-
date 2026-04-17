@@ -27,12 +27,14 @@ const app = Fastify({
 
 // Accept classic HTML form submissions (application/x-www-form-urlencoded)
 await app.register(formbody);
+const corsOriginsRaw = (process.env.CORS_ORIGIN ?? "*")
+  .split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
+const corsAllowsAny = corsOriginsRaw.includes("*");
 await app.register(cors, {
-  origin: (process.env.CORS_ORIGIN ?? "*")
-    .split(",")
-    .map((o) => o.trim())
-    .filter(Boolean),
-  credentials: true
+  origin: corsAllowsAny ? true : corsOriginsRaw,
+  credentials: corsAllowsAny ? false : true
 });
 
 const adminRateLimitMax = Number(process.env.ADMIN_RATE_LIMIT_MAX ?? "30"); // per window
@@ -50,15 +52,12 @@ function requireEnv(name: string, options?: { minLength?: number; message?: stri
   return value;
 }
 
-const jwtSecret: jwt.Secret = requireEnv("JWT_SECRET", { minLength: 12, message: "JWT_SECRET is required and must be strong" });
+const isTestEnv = process.env.NODE_ENV === "test";
+const jwtSecret: jwt.Secret = isTestEnv
+  ? ((process.env.JWT_SECRET ?? "test_jwt_secret_123") as jwt.Secret)
+  : requireEnv("JWT_SECRET", { minLength: 12, message: "JWT_SECRET is required and must be strong" });
 const accessTokenTtlSeconds = Number(process.env.ACCESS_TOKEN_TTL_SECONDS ?? "900");
 const refreshTokenDays = Number(process.env.REFRESH_TOKEN_DAYS ?? "7");
-const adminSeedUsername = requireEnv("ADMIN_USERNAME");
-const adminSeedPassword = requireEnv("ADMIN_PASSWORD", {
-  minLength: 12,
-  message: "ADMIN_PASSWORD is required and should be at least 12 characters"
-});
-const adminSyncPasswordOnStart = (process.env.ADMIN_SYNC_PASSWORD_ON_START ?? "true").toLowerCase() === "true";
 const lockoutMaxAttempts = Number(process.env.ADMIN_LOCKOUT_MAX_ATTEMPTS ?? "5");
 const lockoutMinutes = Number(process.env.ADMIN_LOCKOUT_MINUTES ?? "15");
 const leadsRateLimitWindowMs = Number(process.env.LEADS_RATE_LIMIT_WINDOW_MS ?? "60000");
@@ -240,6 +239,14 @@ async function authenticateAdmin(request: FastifyRequest, reply: FastifyReply): 
 }
 
 async function ensureAdminSchemaAndSeed(): Promise<void> {
+  const adminSeedUsername = requireEnv("ADMIN_USERNAME");
+  const adminSeedPassword = requireEnv("ADMIN_PASSWORD", {
+    minLength: 12,
+    message: "ADMIN_PASSWORD is required and should be at least 12 characters"
+  });
+  const adminSyncPasswordOnStart =
+    (process.env.ADMIN_SYNC_PASSWORD_ON_START ?? "false").toLowerCase() === "true";
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS admin_users (
       id BIGSERIAL PRIMARY KEY,
@@ -1509,7 +1516,10 @@ app.post("/api/v1/admin/auth/2fa/disable", { preHandler: authenticateAdmin }, as
 app.get(
   "/api/v1/admin/leads",
   {
-    preHandler: [rateLimit({ max: adminRateLimitMax, timeWindow: adminRateLimitWindowMs }), authenticateAdmin]
+    config: {
+      rateLimit: { max: adminRateLimitMax, timeWindow: adminRateLimitWindowMs }
+    },
+    preHandler: [authenticateAdmin]
   },
   async (request, reply) => {
   const status = typeof request.query === "object" && request.query !== null
@@ -1574,7 +1584,10 @@ app.get(
 app.patch(
   "/api/v1/admin/leads/:id/status",
   {
-    preHandler: [rateLimit({ max: adminRateLimitMax, timeWindow: adminRateLimitWindowMs }), authenticateAdmin]
+    config: {
+      rateLimit: { max: adminRateLimitMax, timeWindow: adminRateLimitWindowMs }
+    },
+    preHandler: [authenticateAdmin]
   },
   async (request, reply) => {
   const admin = (request as AdminRequest).admin;
@@ -1644,7 +1657,10 @@ app.patch(
 app.get(
   "/api/v1/admin/audit-logs",
   {
-    preHandler: [rateLimit({ max: adminRateLimitMax, timeWindow: adminRateLimitWindowMs }), authenticateAdmin]
+    config: {
+      rateLimit: { max: adminRateLimitMax, timeWindow: adminRateLimitWindowMs }
+    },
+    preHandler: [authenticateAdmin]
   },
   async (request, reply) => {
   const limitRaw = typeof request.query === "object" && request.query !== null

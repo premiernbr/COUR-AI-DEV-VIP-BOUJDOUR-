@@ -1,6 +1,12 @@
 import { Pool, PoolClient } from "pg";
 
-const connectionString = process.env.DATABASE_URL;
+let connectionString = process.env.DATABASE_URL;
+
+// In test environments we want to be able to import the app without a real DB.
+// The pool won't be used unless a route actually queries it.
+if (!connectionString && process.env.NODE_ENV === "test") {
+  connectionString = "postgresql://test:test@localhost:5432/test";
+}
 
 if (!connectionString) {
   throw new Error("DATABASE_URL is required");

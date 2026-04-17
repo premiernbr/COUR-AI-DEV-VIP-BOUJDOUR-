@@ -9,6 +9,8 @@ on:
       - "style.css"
       - "admin.css"
       - "script.js"
+      - "admin.js"
+      - "config.js"
       - "sw.js"
       - "manifest.json"
       - ".github/workflows/frontend-pages.yml"
@@ -33,7 +35,7 @@ jobs:
       - name: Prepare site files
         run: |
           mkdir -p _site
-          cp index.html admin.html style.css admin.css script.js sw.js manifest.json _site/
+          cp index.html admin.html style.css admin.css script.js admin.js config.js sw.js manifest.json _site/
           if [ -d "PNG" ]; then cp -r PNG _site/; fi
 
       - name: Upload Pages artifact

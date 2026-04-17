@@ -8,7 +8,7 @@
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts",
     "seed": "tsx src/seed.ts",
-    "test": "vitest run"
+    "test": "node -r ./tests/child-process-sync.cjs ./node_modules/vitest/vitest.mjs run"
   },
   "dependencies": {
     "@fastify/cors": "^10.0.1",

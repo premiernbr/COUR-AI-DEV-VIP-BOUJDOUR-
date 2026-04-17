@@ -1,4 +1,13 @@
 // ===== DATA =====
+const apiBase = (typeof window !== "undefined" && window.JD_API_BASE ? String(window.JD_API_BASE) : "")
+  .trim()
+  .replace(/\/+$/, "");
+const apiUrl = (path) => (apiBase ? `${apiBase}${path}` : path);
+
+if (!apiBase) {
+  console.warn("JD_API_BASE is empty. API calls will use same-origin /api/* and will fail on GitHub Pages.");
+}
+
 let imgs = [
   {src:'https://images.unsplash.com/photo-1582719478248-54e9f2b5f5c4?auto=format&fit=crop&w=1600&q=80', cap:'صالون رقم 1 - تصميم عصري أنيق'},
   {src:'https://images.unsplash.com/photo-1616594039964-1071ab5b2fd7?auto=format&fit=crop&w=1600&q=80', cap:'صالون رقم 2 - أناقة وفخامة'},
@@ -20,7 +29,7 @@ const waMessages = {
 
 async function hydrateMediaFromApi() {
   try {
-    const res = await fetch('/api/v1/products?limit=8');
+    const res = await fetch(apiUrl('/api/v1/products?limit=8'));
     if (!res.ok) return;
     const data = await res.json();
     const items = Array.isArray(data.items) ? data.items.slice(0, 4) : [];
@@ -140,7 +149,7 @@ document.addEventListener('keydown', (e) => {
 
 async function loadPublicConfig() {
   try {
-    const res = await fetch('/api/v1/public-config');
+    const res = await fetch(apiUrl('/api/v1/public-config'));
     if (!res.ok) return;
     const config = await res.json();
     captchaEnabled = Boolean(config?.captcha?.enabled);
@@ -395,7 +404,7 @@ async function sendOrder(e) {
   btn.disabled = true;
 
   try {
-    const res = await fetch('/api/v1/leads', {
+    const res = await fetch(apiUrl('/api/v1/leads'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)

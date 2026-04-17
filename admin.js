@@ -1,3 +1,8 @@
+const apiBase = (typeof window !== "undefined" && window.JD_API_BASE ? String(window.JD_API_BASE) : "")
+  .trim()
+  .replace(/\/+$/, "");
+const apiUrl = (path) => (apiBase ? `${apiBase}${path}` : path);
+
 const usernameInput = document.getElementById("username");
 const passwordInput = document.getElementById("password");
 const otpCodeInput = document.getElementById("otpCode");
@@ -45,6 +50,20 @@ const auditActionLabels = {
   admin_2fa_disable_failed: "فشل تعطيل 2FA",
   admin_lead_status_updated: "تحديث حالة طلب"
 };
+
+if (!apiBase) {
+  loginBtn.disabled = true;
+  logoutBtn.disabled = true;
+  loadBtn.disabled = true;
+  setup2faBtn.disabled = true;
+  enable2faBtn.disabled = true;
+  disable2faBtn.disabled = true;
+  setAuthenticatedUI(false);
+  setAuthMessage(
+    "لم يتم ضبط API. عدّل `config.js` واجعل `window.JD_API_BASE` = `https://<project-ref>.supabase.co/functions/v1` ثم ادفع التغييرات ليُعاد نشر GitHub Pages.",
+    true
+  );
+}
 
 document.querySelectorAll(".toggle-visibility").forEach((btn) => {
   btn.addEventListener("click", () => {
@@ -163,7 +182,7 @@ async function login() {
   setAuthMessage("جاري تسجيل الدخول...");
 
   try {
-    const res = await fetch("/api/v1/admin/auth/login", {
+    const res = await fetch(apiUrl("/api/v1/admin/auth/login"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, password, twoFactorCode })
@@ -205,7 +224,7 @@ async function refreshSession() {
   const tokens = loadTokens();
   if (!tokens?.refreshToken) return false;
 
-  const res = await fetch("/api/v1/admin/auth/refresh", {
+  const res = await fetch(apiUrl("/api/v1/admin/auth/refresh"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ refreshToken: tokens.refreshToken })
@@ -238,7 +257,7 @@ async function authorizedFetch(url, options = {}, allowRefresh = true) {
     }
   };
 
-  let res = await fetch(url, merged);
+  let res = await fetch(apiUrl(url), merged);
   if (res.status === 401 && allowRefresh) {
     const refreshed = await refreshSession();
     if (!refreshed) {
@@ -439,7 +458,7 @@ async function logout() {
   const tokens = loadTokens();
   if (tokens?.refreshToken) {
     try {
-      await fetch("/api/v1/admin/auth/logout", {
+      await fetch(apiUrl("/api/v1/admin/auth/logout"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ refreshToken: tokens.refreshToken })

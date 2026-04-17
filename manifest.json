@@ -3,7 +3,7 @@
   "short_name": "جديد بوجدور",
   "lang": "ar",
   "dir": "rtl",
-  "start_url": "/",
+  "start_url": ".",
   "display": "standalone",
   "theme_color": "#c9a84c",
   "background_color": "#ffffff",

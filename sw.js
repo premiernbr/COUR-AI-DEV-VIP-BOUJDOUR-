@@ -1,18 +1,40 @@
-const STATIC_CACHE = 'jd-static-v4';
-const DYNAMIC_CACHE = 'jd-dynamic-v4';
-const API_CACHE = 'jd-api-v1';
+const STATIC_CACHE = 'jd-static-v5';
+const DYNAMIC_CACHE = 'jd-dynamic-v5';
+const API_CACHE = 'jd-api-v2';
 
 const STATIC_ASSETS = [
-  '/',
-  '/index.html',
-  '/style.css',
-  '/script.js',
-  '/manifest.json'
+  './',
+  './index.html',
+  './style.css',
+  './script.js',
+  './admin.js',
+  './admin.html',
+  './admin.css',
+  './manifest.json',
+  './sw.js'
 ];
+
+function getScopeBasePath() {
+  try {
+    const scope = self.registration?.scope || self.location.href;
+    const scopePath = new URL(scope).pathname;
+    return scopePath.endsWith('/') ? scopePath : `${scopePath}/`;
+  } catch {
+    return '/';
+  }
+}
+
+function toScopedPath(asset) {
+  const basePath = getScopeBasePath();
+  const rel = asset.replace(/^\.\//, '');
+  return `${basePath}${rel}`.replace(/\/{2,}/g, '/');
+}
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(STATIC_CACHE).then((cache) => cache.addAll(STATIC_ASSETS)).then(() => self.skipWaiting())
+    caches.open(STATIC_CACHE)
+      .then((cache) => cache.addAll(STATIC_ASSETS.map(toScopedPath)))
+      .then(() => self.skipWaiting())
   );
 });
 
@@ -21,7 +43,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((keys) =>
       Promise.all(
         keys.map((key) => {
-          if (key !== STATIC_CACHE && key !== DYNAMIC_CACHE) {
+          if (key !== STATIC_CACHE && key !== DYNAMIC_CACHE && key !== API_CACHE) {
             return caches.delete(key);
           }
           return null;
@@ -34,7 +56,7 @@ self.addEventListener('activate', (event) => {
 function shouldBypass(request) {
   if (request.method !== 'GET') return true;
   const url = new URL(request.url);
-  return url.pathname.startsWith('/api/v1/admin');
+  return url.pathname.includes('/api/v1/admin');
 }
 
 self.addEventListener('fetch', (event) => {
@@ -42,14 +64,27 @@ self.addEventListener('fetch', (event) => {
   if (shouldBypass(request)) return;
 
   const url = new URL(request.url);
-  const isStatic = STATIC_ASSETS.includes(url.pathname);
-  const isPublicConfig = url.pathname === '/api/v1/public-config';
-  const isProductsApi = url.pathname === '/api/v1/products';
+  const scopeBase = getScopeBasePath();
+  const isSameOrigin = url.origin === self.location.origin;
+  const pathname = isSameOrigin && url.pathname.startsWith(scopeBase) ? url.pathname.slice(scopeBase.length - 1) : url.pathname;
+
+  const isStatic = isSameOrigin && STATIC_ASSETS.map(toScopedPath).includes(url.pathname);
+  const isConfig = isSameOrigin && url.pathname === toScopedPath('./config.js');
+  const isPublicConfig = pathname.includes('/api/v1/public-config');
+  const isProductsApi = pathname.includes('/api/v1/products');
   const isImage = /\.(png|jpe?g|gif|webp|svg)$/i.test(url.pathname);
 
   if (isStatic) {
     event.respondWith(
       caches.match(request).then((cached) => cached || fetch(request))
+    );
+    return;
+  }
+
+  // Do not hard-cache runtime config. Always prefer the network.
+  if (isConfig) {
+    event.respondWith(
+      fetch(request).catch(() => caches.match(request))
     );
     return;
   }

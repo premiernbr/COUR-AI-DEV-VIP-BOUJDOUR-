@@ -1,5 +1,10 @@
+.env.compose
 .env.dev
 .env.staging
 .env.prod
+.env.supabase
+.env.supabase.local
+.npm-cache
+supabase/.temp
 backend/node_modules
 backend/dist

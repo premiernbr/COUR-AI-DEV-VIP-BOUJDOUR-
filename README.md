@@ -7,7 +7,7 @@
 
 ## Environment
 - `.env.example` (قائمة المتغيرات)
-- `.env.compose` للتشغيل المحلي السريع
+- `.env.compose.example` للتشغيل المحلي السريع (انسخه إلى `.env.compose`)
 - استخدم `--env-file` لاختيار بيئة أخرى عند الحاجة.
 
 ## Endpoints
@@ -42,6 +42,7 @@ If enabled, the form auto-loads captcha from `/api/v1/public-config`.
 
 ## Quick start (Docker Compose)
 ```bash
+cp .env.compose.example .env.compose
 docker compose --env-file .env.compose up -d db
 docker compose --env-file .env.compose run --rm -v ${PWD}/backend/src:/app/src -v ${PWD}/database:/database api npm run seed
 docker compose --env-file .env.compose up -d api web

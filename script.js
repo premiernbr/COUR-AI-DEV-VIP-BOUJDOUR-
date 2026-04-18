@@ -9,10 +9,10 @@ if (!apiBase) {
 }
 
 let imgs = [
-  {src:'https://images.unsplash.com/photo-1582719478248-54e9f2b5f5c4?auto=format&fit=crop&w=1600&q=80', cap:'صالون رقم 1 - تصميم عصري أنيق'},
-  {src:'https://images.unsplash.com/photo-1616594039964-1071ab5b2fd7?auto=format&fit=crop&w=1600&q=80', cap:'صالون رقم 2 - أناقة وفخامة'},
-  {src:'https://images.unsplash.com/photo-1523419400524-fc1e0dff6a47?auto=format&fit=crop&w=1600&q=80', cap:'صالون رقم 3 - تصميم داخلي راقٍ'},
-  {src:'https://images.unsplash.com/photo-1505691938895-1758d7feb511?auto=format&fit=crop&w=1600&q=80', cap:'صالون رقم 4 - فخامة وأصالة'},
+  {src:'PNG/salon-1.jpg', cap:'صالون رقم 1 - تصميم عصري أنيق'},
+  {src:'PNG/salon-2.jpg', cap:'صالون رقم 2 - أناقة وفخامة'},
+  {src:'PNG/salon-3.jpg', cap:'صالون رقم 3 - تصميم داخلي راقٍ'},
+  {src:'PNG/salon-4.jpg', cap:'صالون رقم 4 - فخامة وأصالة'},
 ];
 let captchaEnabled = false;
 let turnstileWidgetId = null;
@@ -29,16 +29,40 @@ const waMessages = {
 
 async function hydrateMediaFromApi() {
   try {
+    const fallbackImgs = Array.isArray(imgs) ? imgs.slice(0) : [];
     const res = await fetch(apiUrl('/api/v1/products?limit=8'));
     if (!res.ok) return;
     const data = await res.json();
     const items = Array.isArray(data.items) ? data.items.slice(0, 4) : [];
     if (!items.length) return;
 
-    imgs = items.map((p) => ({
-      src: p.main_image_url || imgs[0]?.src,
+    const normalizeImageUrl = (value) => {
+      const raw = String(value || '').trim();
+      if (!raw) return '';
+      if (/^https?:\/\//i.test(raw)) return raw;
+      // allow relative URLs coming from the API (e.g. PNG/foo.jpg)
+      try {
+        return new URL(raw.replace(/^\/+/, ''), document.baseURI).toString();
+      } catch {
+        return raw;
+      }
+    };
+
+    const apiImgs = items.map((p) => ({
+      src: normalizeImageUrl(p.main_image_url) || '',
       cap: p.name || 'منتج'
     }));
+
+    // Avoid showing a single repeated image when the API only has 1–2 products.
+    // Fill the remaining slots with the built-in fallback images.
+    const nextImgs = apiImgs.filter((x) => x.src);
+    for (let i = 0; nextImgs.length < 4 && i < fallbackImgs.length; i++) {
+      const candidate = fallbackImgs[i];
+      if (!candidate?.src) continue;
+      const already = nextImgs.some((x) => x.src === candidate.src);
+      if (!already) nextImgs.push(candidate);
+    }
+    if (nextImgs.length >= 2) imgs = nextImgs;
 
     const slides = document.querySelectorAll('.hero .slide');
     slides.forEach((slide, i) => {

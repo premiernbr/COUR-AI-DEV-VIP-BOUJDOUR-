@@ -1,5 +1,5 @@
 -- Initial schema for JD Boujdour
--- Source: database/init.sql
+-- (trimmed to keep repo minimal)
 
 CREATE TABLE IF NOT EXISTS customers (
   id BIGSERIAL PRIMARY KEY,

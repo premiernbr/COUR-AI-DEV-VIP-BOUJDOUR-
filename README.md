@@ -1,68 +1,58 @@
-# JD Boujdour - Delivery Readiness
+# JD Boujdour (GitHub Pages + Supabase)
 
-## Stack
-- `web`: Nginx serves frontend and proxies `/api/*` to backend.
-- `api`: Node.js + TypeScript + Fastify.
-- `db`: PostgreSQL with persistent Docker volume.
+Static website (GitHub Pages) + backend on Supabase Edge Functions.
 
-## Environment
-- `.env.example` (قائمة المتغيرات)
-- `.env.compose.example` للتشغيل المحلي السريع (انسخه إلى `.env.compose`)
-- استخدم `--env-file` لاختيار بيئة أخرى عند الحاجة.
+## Frontend
+- Live site: `https://<username>.github.io/<repo>/`
+- Admin: `https://<username>.github.io/<repo>/admin`
 
-## Endpoints
-- Website: `http://localhost:8080`
-- Admin: `http://localhost:8080/admin`
-- API health (internal via mapped web): `http://localhost:8080/api/v1/public-config`
+Runtime API config is in `config.js`:
+- `window.JD_API_BASE = "https://<project-ref>.supabase.co/functions/v1/api"`
 
-## Security hardening done
-- Secrets moved out of `docker-compose.yml` into environment files.
-- DB/API host ports are no longer exposed publicly.
-- Admin password sync-on-start is disabled by default.
-- Nginx security headers enabled:
-  - `CSP`
-  - `X-Frame-Options`
-  - `X-Content-Type-Options`
-  - `Referrer-Policy`
-  - `Permissions-Policy`
-  - `HSTS`
-- Lead endpoint protection:
-  - Rate limit by IP
-  - Optional Turnstile captcha validation
-- Admin endpoints rate limit via `ADMIN_RATE_LIMIT_MAX` / `ADMIN_RATE_LIMIT_WINDOW_MS`
-- CORS قابل للضبط عبر `CORS_ORIGIN` (قائمة origins مفصولة بفواصل، اضبطه على نطاق GitHub Pages عند النشر العام).
+## Backend (Supabase Edge Function)
+Source: `supabase/functions/api/index.ts`
 
-## Captcha
-In env file:
-- `TURNSTILE_ENABLED=true|false`
-- `TURNSTILE_SITE_KEY=...`
-- `TURNSTILE_SECRET_KEY=...`
+### Routes used by the website
+- `GET /api/v1/public-config` (captcha config)
+- `GET /api/v1/products?limit=...` (homepage media/products)
+- `POST /api/v1/leads` (order form)
 
-If enabled, the form auto-loads captcha from `/api/v1/public-config`.
+### Admin routes
+- `POST /api/v1/admin/auth/login`
+- `GET /api/v1/admin/auth/me`
+- `GET /api/v1/admin/leads?status=...`
+- `PATCH /api/v1/admin/leads/:id/status`
+- `GET /api/v1/admin/audit-logs?limit=...`
+- `GET /api/v1/admin/auth/2fa/setup`
+- `POST /api/v1/admin/auth/2fa/enable`
+- `POST /api/v1/admin/auth/2fa/disable`
 
-## Quick start (Docker Compose)
-```bash
-cp .env.compose.example .env.compose
-docker compose --env-file .env.compose up -d db
-docker compose --env-file .env.compose run --rm -v ${PWD}/backend/src:/app/src -v ${PWD}/database:/database api npm run seed
-docker compose --env-file .env.compose up -d api web
-```
-Health: `http://localhost:3000/health` — Front: `http://localhost:8080`
+### Required Supabase Secrets (Dashboard → Functions → Secrets)
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `ADMIN_JWT_SECRET` (or `JWT_SECRET`) (≥ 12 chars)
+- `ADMIN_USERNAME`, `ADMIN_PASSWORD`
+- `CORS_ORIGIN` (your GitHub Pages origin, or `*` for testing)
+- Optional Turnstile:
+  - `TURNSTILE_ENABLED=true|false`
+  - `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`
 
-## Testing
-```bash
-cd backend
-npm ci
-npm test -- --runInBand
-```
-CI pipeline: gitleaks → npm audit (high) → OSV Scanner → tests → build → buildx/SBOM/Provenance.
+### IMPORTANT: Edge Function settings
+- Edge Functions → `api` → Settings → **Verify JWT: OFF**
+  - Otherwise public endpoints like `/api/v1/leads` will return 401 without an auth header.
 
-## Stop
+## GitHub Actions
+- `frontend-pages`: deploys static files + `PNG/` to GitHub Pages.
+- `supabase-edge-deploy`: deploys the `api` Edge Function (requires repo secrets below).
+
+### Repo secrets for `supabase-edge-deploy`
+GitHub repo → Settings → Secrets and variables → Actions:
+- `SUPABASE_ACCESS_TOKEN`
+- `SUPABASE_PROJECT_REF`
+
+## Smoke test (local)
+Runs a few requests against the configured `JD_API_BASE`:
 ```powershell
-docker compose down
+powershell -ExecutionPolicy Bypass -File scripts/smoke.ps1
 ```
 
-## Reset all DB data
-```powershell
-docker compose down -v
-```

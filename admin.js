@@ -131,16 +131,28 @@ function formatDate(value) {
 }
 
 function saveTokens(tokens) {
-  sessionStorage.setItem(tokenStorageKey, JSON.stringify(tokens));
+  const normalized = {
+    accessToken: tokens?.accessToken ?? tokens?.access_token ?? null,
+    refreshToken: tokens?.refreshToken ?? tokens?.refresh_token ?? null,
+    tokenType: tokens?.tokenType ?? tokens?.token_type ?? "Bearer",
+    expiresIn: tokens?.expiresIn ?? tokens?.expires_in ?? null
+  };
+
+  sessionStorage.setItem(tokenStorageKey, JSON.stringify(normalized));
 }
 
-function loadTokens() {
+function getTokens() {
   const raw = sessionStorage.getItem(tokenStorageKey);
   if (!raw) return null;
+
   try {
     const parsed = JSON.parse(raw);
-    if (!parsed.accessToken || !parsed.refreshToken) return null;
-    return parsed;
+    return {
+      accessToken: parsed?.accessToken ?? parsed?.access_token ?? null,
+      refreshToken: parsed?.refreshToken ?? parsed?.refresh_token ?? null,
+      tokenType: parsed?.tokenType ?? parsed?.token_type ?? "Bearer",
+      expiresIn: parsed?.expiresIn ?? parsed?.expires_in ?? null
+    };
   } catch {
     return null;
   }
@@ -188,27 +200,45 @@ async function login() {
       body: JSON.stringify({ username, password, twoFactorCode })
     });
 
-    if (res.status === 202) {
-      setAuthMessage("الحساب يتطلب رمز 2FA. أدخل الرمز وأعد المحاولة.", true);
+    const data = await res.json();
+
+    if (!res.ok || data?.ok === false) {
+      const message =
+        data?.message ||
+        (res.status === 202 ? "التحقق الثنائي مطلوب." : null) ||
+        (res.status === 423 ? "الحساب مقفل مؤقتًا بسبب محاولات فاشلة كثيرة." : null) ||
+        "فشل تسجيل الدخول";
+      setAuthMessage(message, true);
       return;
-    }
-    if (res.status === 423) {
-      setAuthMessage("الحساب مقفل مؤقتًا بسبب محاولات فاشلة كثيرة.", true);
-      return;
-    }
-    if (!res.ok) {
-      throw new Error("login_failed");
     }
 
-    const data = await res.json();
+    if (data?.requires_2fa === true) {
+      setAuthMessage("التحقق الثنائي مطلوب.", false);
+      return;
+    }
+
     saveTokens({
-      accessToken: data.accessToken,
-      refreshToken: data.refreshToken
+      accessToken: data?.accessToken ?? data?.access_token,
+      refreshToken: data?.refreshToken ?? data?.refresh_token ?? null,
+      tokenType: data?.tokenType ?? data?.token_type ?? "Bearer",
+      expiresIn: data?.expiresIn ?? data?.expires_in ?? null
     });
-    setAuthenticatedUI(true);
-    setAuthMessage(`تم تسجيل الدخول: ${data.user.username}`);
+
+    // Verify session after saving tokens
+    const meRes = await authorizedFetch("/api/v1/admin/auth/me");
+    const meData = await meRes.json().catch(() => ({}));
+
+    if (!meRes.ok || meData?.ok === false) {
+      clearTokens();
+      setAuthMessage(meData?.message || "انتهت الجلسة. سجل الدخول مجددًا.", true);
+      setAuthenticatedUI(false);
+      return;
+    }
+
     passwordInput.value = "";
     otpCodeInput.value = "";
+    setAuthenticatedUI(true);
+    setAuthMessage("تم تسجيل الدخول بنجاح.", false);
     await fetchLeads();
     await fetchAuditLogs();
   } catch {
@@ -220,52 +250,19 @@ async function login() {
   }
 }
 
-async function refreshSession() {
-  const tokens = loadTokens();
-  if (!tokens?.refreshToken) return false;
-
-  const res = await fetch(apiUrl("/api/v1/admin/auth/refresh"), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ refreshToken: tokens.refreshToken })
-  });
-
-  if (!res.ok) {
-    clearTokens();
-    return false;
-  }
-
-  const data = await res.json();
-  saveTokens({
-    accessToken: data.accessToken,
-    refreshToken: data.refreshToken
-  });
-  return true;
-}
-
-async function authorizedFetch(url, options = {}, allowRefresh = true) {
-  const tokens = loadTokens();
+async function authorizedFetch(path, options = {}) {
+  const tokens = getTokens();
   if (!tokens?.accessToken) {
-    throw new Error("not_logged_in");
+    throw new Error("Missing access token");
   }
 
-  const merged = {
+  const headers = new Headers(options.headers || {});
+  headers.set("Authorization", `${tokens.tokenType || "Bearer"} ${tokens.accessToken}`);
+
+  return fetch(apiUrl(path), {
     ...options,
-    headers: {
-      ...(options.headers || {}),
-      Authorization: `Bearer ${tokens.accessToken}`
-    }
-  };
-
-  let res = await fetch(apiUrl(url), merged);
-  if (res.status === 401 && allowRefresh) {
-    const refreshed = await refreshSession();
-    if (!refreshed) {
-      throw new Error("session_expired");
-    }
-    res = await authorizedFetch(url, options, false);
-  }
-  return res;
+    headers
+  });
 }
 
 async function fetchLeads() {
@@ -283,7 +280,7 @@ async function fetchLeads() {
     renderRows(data.items || []);
     setMessage(`تم تحميل ${data.count || 0} طلب بنجاح.`);
   } catch (error) {
-    if (error.message === "not_logged_in" || error.message === "session_expired") {
+    if (error.message === "Missing access token") {
       setMessage("سجّل الدخول أولًا.", true);
       setAuthMessage("انتهت الجلسة. سجل الدخول مجددًا.", true);
       clearTokens();
@@ -354,7 +351,7 @@ async function updateStatus(leadId) {
     await fetchLeads();
     await fetchAuditLogs();
   } catch (error) {
-    if (error.message === "not_logged_in" || error.message === "session_expired") {
+    if (error.message === "Missing access token") {
       setMessage("سجّل الدخول أولًا.", true);
       clearTokens();
       setAuthenticatedUI(false);
@@ -455,7 +452,7 @@ async function disable2fa() {
 }
 
 async function logout() {
-  const tokens = loadTokens();
+  const tokens = getTokens();
   if (tokens?.refreshToken) {
     try {
       await fetch(apiUrl("/api/v1/admin/auth/logout"), {
@@ -511,7 +508,7 @@ disable2faBtn.addEventListener("click", () => {
 
 async function initializeSession() {
   setAuthenticatedUI(false);
-  if (!loadTokens()) {
+  if (!getTokens()?.accessToken) {
     return;
   }
 

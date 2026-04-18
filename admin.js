@@ -87,7 +87,14 @@ function getAuditLabel(action) {
 function renderQrCode(text) {
   if (!twoFaQr) return;
   twoFaQr.innerHTML = "";
-  if (!text || typeof QRCode === "undefined") return;
+  if (!text) return;
+  if (typeof QRCode === "undefined") {
+    setTwoFaMessage(
+      "تعذر عرض رمز QR لأن مكتبة QR (qrcodejs) لم تُحمّل. يمكنك تفعيل 2FA يدويًا عبر إدخال \"الكود السري\" في تطبيق المصادقة.",
+      true
+    );
+    return;
+  }
   new QRCode(twoFaQr, {
     text,
     width: 170,
@@ -167,14 +174,40 @@ function resetProtectedTables() {
   auditRows.innerHTML = `<tr><td colspan="5" class="empty">لا توجد سجلات تدقيق</td></tr>`;
 }
 
+async function safeReadJson(res) {
+  try {
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+async function getErrorMessage(res) {
+  const data = await safeReadJson(res);
+  return (
+    data?.message ||
+    data?.error ||
+    (typeof data === "string" ? data : null) ||
+    `HTTP_${res.status}`
+  );
+}
+
 function setAuthenticatedUI(isAuthenticated) {
   if (isAuthenticated) {
     protectedArea.classList.remove("hidden");
     securityCard.classList.remove("hidden");
+    loadBtn.disabled = false;
+    setup2faBtn.disabled = false;
+    enable2faBtn.disabled = false;
+    disable2faBtn.disabled = false;
     return;
   }
   protectedArea.classList.add("hidden");
   securityCard.classList.add("hidden");
+  loadBtn.disabled = true;
+  setup2faBtn.disabled = true;
+  enable2faBtn.disabled = true;
+  disable2faBtn.disabled = true;
   renderQrCode("");
   twoFaUriEl.textContent = "";
   resetProtectedTables();
@@ -392,8 +425,13 @@ async function fetchAuditLogs() {
 async function setup2fa() {
   try {
     const res = await authorizedFetch("/api/v1/admin/auth/2fa/setup", { method: "GET" });
-    if (!res.ok) throw new Error("setup_failed");
-    const data = await res.json();
+    if (!res.ok) {
+      const msg = await getErrorMessage(res);
+      setTwoFaMessage(`تعذر تهيئة 2FA: ${msg}`, true);
+      return;
+    }
+
+    const data = (await safeReadJson(res)) || {};
     twoFaSecretInput.value = data.secret || "";
     twoFaUriEl.textContent = data.otpauthUrl || "";
     renderQrCode(data.otpauthUrl || "");
@@ -417,7 +455,11 @@ async function enable2fa() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ secret, code })
     });
-    if (!res.ok) throw new Error("enable_failed");
+    if (!res.ok) {
+      const msg = await getErrorMessage(res);
+      setTwoFaMessage(`فشل تفعيل 2FA: ${msg}`, true);
+      return;
+    }
     setTwoFaMessage("تم تفعيل الحماية الثنائية بنجاح.");
     twoFaCodeInput.value = "";
     await fetchAuditLogs();
@@ -439,7 +481,11 @@ async function disable2fa() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ code })
     });
-    if (!res.ok) throw new Error("disable_failed");
+    if (!res.ok) {
+      const msg = await getErrorMessage(res);
+      setTwoFaMessage(`فشل تعطيل 2FA: ${msg}`, true);
+      return;
+    }
     setTwoFaMessage("تم تعطيل الحماية الثنائية.");
     twoFaCodeInput.value = "";
     twoFaSecretInput.value = "";

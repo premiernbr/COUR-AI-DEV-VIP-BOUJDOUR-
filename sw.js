@@ -1,6 +1,6 @@
-const STATIC_CACHE = 'jd-static-v6';
-const DYNAMIC_CACHE = 'jd-dynamic-v6';
-const API_CACHE = 'jd-api-v3';
+const STATIC_CACHE = 'jd-static-v7';
+const DYNAMIC_CACHE = 'jd-dynamic-v7';
+const API_CACHE = 'jd-api-v4';
 
 const STATIC_ASSETS = [
   './',
@@ -10,6 +10,7 @@ const STATIC_ASSETS = [
   './admin.js',
   './admin.html',
   './admin.css',
+  './vendor/qrcode.min.js',
   './manifest.json',
   './sw.js'
 ];

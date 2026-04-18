@@ -14,7 +14,7 @@ Source: `supabase/functions/api/index.ts`
 
 ### Routes used by the website
 - `GET /api/v1/public-config` (captcha config)
-- `GET /api/v1/products?limit=...` (homepage media/products)
+- `GET /api/v1/products?limit=...` (homepage media/products, now returns `images` and `variants`)
 - `POST /api/v1/leads` (order form)
 
 ### Admin routes
@@ -33,6 +33,8 @@ Source: `supabase/functions/api/index.ts`
 - `ADMIN_JWT_SECRET` (or `JWT_SECRET`) (≥ 12 chars)
 - `ADMIN_USERNAME`, `ADMIN_PASSWORD`
 - `CORS_ORIGIN` (your GitHub Pages origin, or `*` for testing)
+- Optional catalog storage:
+  - `CATALOG_BUCKET` (default: `catalog`)
 - Optional Turnstile:
   - `TURNSTILE_ENABLED=true|false`
   - `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`
@@ -55,4 +57,21 @@ Runs a few requests against the configured `JD_API_BASE`:
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/smoke.ps1
 ```
+
+## Vendored library
+- `vendor/qrcode.min.js`
+- License: `vendor/qrcodejs.LICENSE.txt` (MIT)
+- Used by `admin.html` to render the 2FA QR code locally without a CDN dependency.
+
+## Catalog model
+- Current public API supports:
+  - `products.main_image_path` / `products.main_image_url`
+  - `product_images.storage_path`
+  - `variants[]`
+  - `variant.images[]`
+- Recommended storage layout in Supabase Storage bucket `catalog`:
+  - `products/<product-slug>/cover.webp`
+  - `products/<product-slug>/gallery/01.webp`
+  - `products/<product-slug>/variants/<variant-slug>/cover.webp`
+  - `products/<product-slug>/variants/<variant-slug>/gallery/01.webp`
 

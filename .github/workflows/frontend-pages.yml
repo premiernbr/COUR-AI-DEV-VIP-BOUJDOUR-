@@ -13,6 +13,7 @@ on:
       - "config.js"
       - "sw.js"
       - "manifest.json"
+      - "vendor/**"
       - ".github/workflows/**"
   workflow_dispatch:
 
@@ -37,6 +38,7 @@ jobs:
           mkdir -p _site
           cp index.html admin.html style.css admin.css script.js admin.js config.js sw.js manifest.json _site/
           if [ -d "PNG" ]; then cp -r PNG _site/; fi
+          if [ -d "vendor" ]; then cp -r vendor _site/; fi
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

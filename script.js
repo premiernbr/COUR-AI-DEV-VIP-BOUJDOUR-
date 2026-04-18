@@ -16,12 +16,12 @@ let imgs = [
 ];
 let captchaEnabled = false;
 let turnstileWidgetId = null;
-const waFirstContactKey = 'jd_wa_first_contact_done_v1';
 const waDefaultPhone = '212690875647';
+const callDefaultPhone = '0690875647';
 let waCurrentPhone = waDefaultPhone;
+let callCurrentPhone = callDefaultPhone;
 let waOpenLock = false;
 const waMessages = {
-  first: 'مرحباً، دخلت الموقع الآن وأرغب في التعرف على خدماتكم ومنتجاتكم المتوفرة.',
   availability: 'مرحباً، أريد الاستفسار عن المنتجات والتصاميم المتوفرة حالياً.',
   quote: 'مرحباً، أريد عرض سعر لصالون أو ديكور مع تفاصيل التوصيل والتركيب.',
   consulting: 'مرحباً، أحتاج استشارة سريعة لاختيار التصميم المناسب لمساحتي وميزانيتي.'
@@ -92,28 +92,22 @@ function parseWaPhone(url) {
   return match ? match[1] : waDefaultPhone;
 }
 
+function parseTelPhone(url) {
+  const raw = String(url || '').replace(/^tel:/i, '');
+  const digits = raw.replace(/\D/g, '');
+  if (!digits) return callDefaultPhone;
+  // keep local Moroccan format for tel links
+  if (digits.startsWith('212') && digits.length === 12) return '0' + digits.slice(3);
+  if (digits.length === 9 && /^[567]/.test(digits)) return '0' + digits;
+  return digits;
+}
+
 function openWhatsApp(phone, message) {
   if (waOpenLock) return;
   waOpenLock = true;
   setTimeout(() => { waOpenLock = false; }, 800);
   const target = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
   window.open(target, '_blank', 'noopener,noreferrer');
-}
-
-function isFirstWaContact() {
-  try {
-    return localStorage.getItem(waFirstContactKey) !== '1';
-  } catch {
-    return true;
-  }
-}
-
-function markWaContactDone() {
-  try {
-    localStorage.setItem(waFirstContactKey, '1');
-  } catch {
-    // ignore storage errors
-  }
 }
 
 function setWaModal(open) {
@@ -124,17 +118,14 @@ function setWaModal(open) {
   document.body.style.overflow = open ? 'hidden' : '';
 }
 
-function handleWhatsAppClick(linkHref) {
-  waCurrentPhone = parseWaPhone(linkHref);
-  if (isFirstWaContact()) {
-    markWaContactDone();
-    openWhatsApp(waCurrentPhone, waMessages.first);
-    return;
-  }
+function openContactChoices(params) {
+  if (params?.waPhone) waCurrentPhone = params.waPhone;
+  if (params?.callPhone) callCurrentPhone = params.callPhone;
   setWaModal(true);
 }
 
-function initWhatsAppLinks() {
+function initContactLinks() {
+  // WhatsApp links -> open choices (do NOT open WhatsApp directly on first click)
   document.querySelectorAll('a[href*="wa.me/"]').forEach((link) => {
     const originalHref = link.getAttribute('href') || '';
     const phone = parseWaPhone(originalHref);
@@ -144,32 +135,56 @@ function initWhatsAppLinks() {
     link.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      handleWhatsAppClick(link.getAttribute('data-wa-phone') || phone);
+      openContactChoices({ waPhone: link.getAttribute('data-wa-phone') || phone });
+    });
+  });
+
+  // Phone links -> open the SAME choices modal (call is an option inside the list)
+  document.querySelectorAll('a[href^="tel:"]').forEach((link) => {
+    const originalHref = link.getAttribute('href') || '';
+    const phone = parseTelPhone(originalHref);
+    link.setAttribute('data-call-phone', phone);
+    link.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      openContactChoices({ callPhone: link.getAttribute('data-call-phone') || phone });
     });
   });
 }
 
-document.addEventListener('click', (e) => {
-  const target = e.target;
-  if (!(target instanceof Element)) return;
+function bindContactModalHandlersOnce() {
+  if (typeof window !== 'undefined' && window.__JD_CONTACT_BOUND) return;
+  if (typeof window !== 'undefined') window.__JD_CONTACT_BOUND = true;
 
-  const optionBtn = target.closest('.wa-option');
-  if (optionBtn) {
-    const key = optionBtn.getAttribute('data-wa-option');
-    const selected = waMessages[key] || waMessages.availability;
-    setWaModal(false);
-    openWhatsApp(waCurrentPhone, selected);
-    return;
-  }
+  document.addEventListener('click', (e) => {
+    const target = e.target;
+    if (!(target instanceof Element)) return;
 
-  if (target.id === 'waModalBg' || target.id === 'waModalClose') {
-    setWaModal(false);
-  }
-});
+    const optionBtn = target.closest('.wa-option');
+    if (optionBtn) {
+      const key = optionBtn.getAttribute('data-wa-option') || '';
+      setWaModal(false);
 
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') setWaModal(false);
-});
+      if (key === 'call') {
+        const tel = `tel:${callCurrentPhone || callDefaultPhone}`;
+        window.location.href = tel;
+        return;
+      }
+
+      const selected = waMessages[key] || waMessages.availability;
+      openWhatsApp(waCurrentPhone || waDefaultPhone, selected);
+      return;
+    }
+
+    if (target.id === 'waModalBg' || target.id === 'waModalClose') {
+      setWaModal(false);
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') setWaModal(false);
+  });
+}
 
 async function loadPublicConfig() {
   try {
@@ -505,7 +520,10 @@ function checkAOS() {
 window.addEventListener('load', () => { checkAOS(); setTimeout(checkAOS, 300); });
 checkAOS();
 window.addEventListener('load', () => { void loadPublicConfig(); });
-window.addEventListener('load', () => { initWhatsAppLinks(); });
+window.addEventListener('load', () => {
+  bindContactModalHandlersOnce();
+  initContactLinks();
+});
 window.addEventListener('load', () => { void hydrateMediaFromApi(); });
 
 // ===== SMOOTH SCROLL =====

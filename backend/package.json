@@ -29,7 +29,7 @@
     "@types/supertest": "^2.0.16",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
-    "vitest": "^1.6.1",
+    "vitest": "^4.1.4",
     "supertest": "^6.3.4"
   }
 }

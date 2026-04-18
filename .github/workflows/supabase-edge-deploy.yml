@@ -8,7 +8,8 @@ on:
       - "supabase/config.toml"
       - ".github/workflows/supabase-edge-deploy.yml"
   workflow_dispatch:
-
+permissions: 
+  contents: read
 jobs:
   deploy:
     runs-on: ubuntu-latest

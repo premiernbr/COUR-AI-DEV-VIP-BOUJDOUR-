@@ -406,6 +406,23 @@ async function sendOrder(e) {
     captchaToken
   };
 
+  // Phone normalization/validation (Morocco)
+  const normalizePhone = (value) => {
+    const digits = String(value || '').replace(/\D/g, '');
+    if (!digits) return '';
+    let d = digits;
+    if (d.startsWith('00')) d = d.slice(2);
+    if (d.startsWith('212') && d.length === 12) d = '0' + d.slice(3);
+    if (d.length === 9 && /^[567]/.test(d)) d = '0' + d;
+    return d;
+  };
+  payload.phone = normalizePhone(payload.phone);
+  if (!/^0[567]\d{8}$/.test(payload.phone)) {
+    setModalContent('رقم الهاتف غير صحيح', 'أدخل رقم هاتف مغربي من 10 أرقام يبدأ بـ 05 أو 06 أو 07 (مثال: 0612345678).');
+    document.getElementById('modalBg').classList.add('open');
+    return;
+  }
+
   // Frontend validation: word limits and basic payload hygiene
   if (countWords(payload.fullName) > maxNameWords) {
     setModalContent('الاسم طويل جدًا', `الرجاء اختصار الاسم (بحد أقصى ${maxNameWords} كلمات).`);

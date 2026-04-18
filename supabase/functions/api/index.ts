@@ -72,8 +72,37 @@ async function readJsonBody(req: Request): Promise<any> {
   }
 }
 
+function normalizeMoroccanPhone(input: unknown): string {
+  const raw = typeof input === "string" ? input.trim() : "";
+  if (!raw) return "";
+
+  // Keep digits only. This tolerates spaces, dashes, parentheses, etc.
+  // Examples accepted:
+  // - 06 12 34 56 78
+  // - 06-12-34-56-78
+  // - +212612345678
+  // - 212612345678
+  // - 0612345678
+  // - 612345678 (will be normalized to 0612345678)
+  let digits = raw.replace(/\D/g, "");
+
+  // Convert international prefix 00 to country code form
+  if (digits.startsWith("00")) digits = digits.slice(2);
+
+  // Normalize to local format 0XXXXXXXXX (10 digits)
+  if (digits.startsWith("212") && digits.length === 12) {
+    digits = "0" + digits.slice(3);
+  } else if (digits.length === 9 && /^[567]/.test(digits)) {
+    digits = "0" + digits;
+  }
+
+  // Final validation: 10 digits, starts with 05/06/07
+  if (!/^0[567][0-9]{8}$/.test(digits)) return "";
+  return digits;
+}
+
 function isValidMoroccanPhone(phone: string): boolean {
-  return /^(?:\+212|212|0)(?:5|6|7)[0-9]{8}$/.test(phone);
+  return /^0[567][0-9]{8}$/.test(phone);
 }
 
 function getRequestIp(req: Request): string {
@@ -225,11 +254,22 @@ Deno.serve(async (req) => {
     // https://<project-ref>.supabase.co/functions/v1/api/v1/...
     const basePrefix = "/functions/v1/api";
     const afterPrefix = pathname.startsWith(basePrefix) ? pathname.slice(basePrefix.length) : pathname;
-    // Be tolerant to callers that accidentally include `/api` in JD_API_BASE:
-    // https://.../functions/v1/api + /api/v1/... => /functions/v1/api/api/v1/...
-    const routePath = afterPrefix.startsWith("/api/v1/")
-      ? `/v1/${afterPrefix.slice("/api/v1/".length)}`
-      : afterPrefix;
+    // Normalize paths so the frontend can safely call `/api/v1/...` regardless of how
+    // `JD_API_BASE` is configured (it might already include `/api`).
+    //
+    // Examples we want to support:
+    // - /functions/v1/api/v1/products          (JD_API_BASE ends with .../api, path = /v1/...)
+    // - /functions/v1/api/api/v1/products      (JD_API_BASE ends with .../api, path = /api/v1/...)
+    // - /functions/v1/api/api/api/v1/products  (accidental double /api)
+    let routePath = afterPrefix;
+    // Strip one or two leading `/api/` segments if present.
+    for (let i = 0; i < 2; i++) {
+      if (routePath.startsWith("/api/")) routePath = routePath.slice("/api".length);
+    }
+    // Convert `/api/v1/...` to internal `/v1/...`.
+    if (routePath.startsWith("/api/v1/")) {
+      routePath = `/v1/${routePath.slice("/api/v1/".length)}`;
+    }
 
     // keep a very simple ping route
     if (
@@ -294,7 +334,7 @@ Deno.serve(async (req) => {
       }
 
       const fullName = normalizeText(body.fullName, 120);
-      const phone = normalizeText(body.phone, 40).replace(/\s+/g, "");
+      const phone = normalizeMoroccanPhone(body.phone);
       const city = normalizeText(body.city, 120);
       const productType = normalizeText(body.productType, 150);
       const budgetRange = normalizeText(body.budgetRange, 100);
@@ -305,8 +345,18 @@ Deno.serve(async (req) => {
       if (fullName.length < 2 || productType.length < 2) {
         return withCors(req, jsonResponse({ ok: false, error: "VALIDATION_ERROR" }, { status: 400 }));
       }
-      if (!isValidMoroccanPhone(phone)) {
-        return withCors(req, jsonResponse({ ok: false, error: "INVALID_PHONE" }, { status: 400 }));
+      if (!phone || !isValidMoroccanPhone(phone)) {
+        return withCors(
+          req,
+          jsonResponse(
+            {
+              ok: false,
+              error: "INVALID_PHONE",
+              message: "رقم الهاتف يجب أن يكون 10 أرقام ويبدأ بـ 05 أو 06 أو 07 (مثال: 0612345678).",
+            },
+            { status: 400 },
+          ),
+        );
       }
 
       const ip = getRequestIp(req);

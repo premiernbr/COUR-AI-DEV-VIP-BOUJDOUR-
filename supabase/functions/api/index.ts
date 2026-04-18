@@ -19,6 +19,7 @@ if (!jwtSecret || jwtSecret.length < 12) {
 
 const supabase = createClient(supabaseUrl, serviceRoleKey);
 const jwtKey = new TextEncoder().encode(jwtSecret);
+const catalogBucket = (Deno.env.get("CATALOG_BUCKET") ?? "catalog").trim() || "catalog";
 
 const jwtIssuer = "jd-boujdour-api";
 const jwtAudience = "jd-boujdour-admin";
@@ -62,6 +63,51 @@ function withCors(req: Request, res: Response): Response {
 function normalizeText(value: unknown, maxLen: number): string {
   const text = typeof value === "string" ? value.trim() : "";
   return text.slice(0, maxLen);
+}
+
+function normalizeStoragePath(value: unknown): string | null {
+  const raw = typeof value === "string" ? value.trim() : "";
+  if (!raw) return null;
+  if (/^https?:\/\//i.test(raw)) return null;
+  return raw.replace(/^\/+/, "");
+}
+
+function buildPublicStorageUrl(path: string): string {
+  const encodedPath = path
+    .split("/")
+    .filter(Boolean)
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+  return `${supabaseUrl}/storage/v1/object/public/${encodeURIComponent(catalogBucket)}/${encodedPath}`;
+}
+
+function resolveImageRef(...values: unknown[]): { path: string | null; url: string | null } {
+  for (const value of values) {
+    const raw = typeof value === "string" ? value.trim() : "";
+    if (!raw) continue;
+    if (/^https?:\/\//i.test(raw)) {
+      return { path: null, url: raw };
+    }
+    const path = raw.replace(/^\/+/, "");
+    return { path, url: buildPublicStorageUrl(path) };
+  }
+  return { path: null, url: null };
+}
+
+function errorText(error: unknown): string {
+  return error && typeof error === "object" && "message" in error ? String((error as { message: unknown }).message ?? "") : "";
+}
+
+function isMissingSchemaObject(error: unknown, objectName: string): boolean {
+  const text = errorText(error).toLowerCase();
+  const needle = objectName.toLowerCase();
+  return text.includes(needle) && (
+    text.includes("does not exist") ||
+    text.includes("could not find") ||
+    text.includes("column") ||
+    text.includes("relation") ||
+    text.includes("schema cache")
+  );
 }
 
 async function readJsonBody(req: Request): Promise<any> {
@@ -310,20 +356,226 @@ Deno.serve(async (req) => {
     if (req.method === "GET" && routePath === "/v1/products") {
       const limitRaw = url.searchParams.get("limit") ?? "30";
       const limit = Number.isFinite(Number(limitRaw)) ? Math.min(Math.max(Number(limitRaw), 1), 100) : 30;
-
-      const { data, error } = await supabase
+      let products: Array<Record<string, unknown>> = [];
+      let { data: productRows, error: productError } = await supabase
         .from("products")
-        .select("id,name,slug,price,currency,popularity,main_image_url,is_active")
+        .select("id,name,slug,description,price,currency,popularity,category_id,main_image_url,main_image_path,tags,attributes,is_active")
         .eq("is_active", true)
         .order("popularity", { ascending: false })
         .limit(limit);
 
-      if (error) {
-        console.error("products query failed", error);
+      if (productError && isMissingSchemaObject(productError, "main_image_path")) {
+        const fallback = await supabase
+          .from("products")
+          .select("id,name,slug,description,price,currency,popularity,category_id,main_image_url,tags,attributes,is_active")
+          .eq("is_active", true)
+          .order("popularity", { ascending: false })
+          .limit(limit);
+        productRows = fallback.data;
+        productError = fallback.error;
+      }
+
+      if (productError) {
+        console.error("products query failed", productError);
         return withCors(req, jsonResponse({ ok: false, error: "INTERNAL_ERROR" }, { status: 500 }));
       }
 
-      return withCors(req, jsonResponse({ ok: true, count: data?.length ?? 0, items: data ?? [] }, { status: 200 }));
+      products = Array.isArray(productRows) ? productRows : [];
+      const productIds = products
+        .map((item) => Number(item.id))
+        .filter((value) => Number.isInteger(value) && value > 0);
+      const categoryIds = Array.from(new Set(
+        products
+          .map((item) => Number(item.category_id))
+          .filter((value) => Number.isInteger(value) && value > 0),
+      ));
+
+      let categoriesById = new Map<number, Record<string, unknown>>();
+      if (categoryIds.length > 0) {
+        const { data: categoryRows, error: categoryError } = await supabase
+          .from("categories")
+          .select("id,name,slug")
+          .in("id", categoryIds);
+        if (categoryError) {
+          console.error("categories query failed", categoryError);
+        } else {
+          categoriesById = new Map(
+            (categoryRows ?? []).map((item) => [Number(item.id), item as Record<string, unknown>]),
+          );
+        }
+      }
+
+      let productImages: Array<Record<string, unknown>> = [];
+      if (productIds.length > 0) {
+        let imagesResult = await supabase
+          .from("product_images")
+          .select("id,product_id,storage_path,url,alt,position")
+          .in("product_id", productIds)
+          .order("position", { ascending: true })
+          .order("id", { ascending: true });
+
+        if (imagesResult.error && isMissingSchemaObject(imagesResult.error, "storage_path")) {
+          imagesResult = await supabase
+            .from("product_images")
+            .select("id,product_id,url,alt,position")
+            .in("product_id", productIds)
+            .order("position", { ascending: true })
+            .order("id", { ascending: true });
+        }
+
+        if (imagesResult.error) {
+          console.error("product_images query failed", imagesResult.error);
+        } else {
+          productImages = (imagesResult.data ?? []) as Array<Record<string, unknown>>;
+        }
+      }
+
+      let variants: Array<Record<string, unknown>> = [];
+      if (productIds.length > 0) {
+        const variantsResult = await supabase
+          .from("product_variants")
+          .select("id,product_id,name,slug,sku,description,price,currency,sort_order,attributes,main_image_path,is_active")
+          .in("product_id", productIds)
+          .eq("is_active", true)
+          .order("sort_order", { ascending: true })
+          .order("id", { ascending: true });
+
+        if (variantsResult.error) {
+          if (!isMissingSchemaObject(variantsResult.error, "product_variants")) {
+            console.error("product_variants query failed", variantsResult.error);
+          }
+        } else {
+          variants = (variantsResult.data ?? []) as Array<Record<string, unknown>>;
+        }
+      }
+
+      const variantIds = variants
+        .map((item) => Number(item.id))
+        .filter((value) => Number.isInteger(value) && value > 0);
+
+      let variantImages: Array<Record<string, unknown>> = [];
+      if (variantIds.length > 0) {
+        const variantImagesResult = await supabase
+          .from("product_variant_images")
+          .select("id,variant_id,storage_path,alt,position")
+          .in("variant_id", variantIds)
+          .order("position", { ascending: true })
+          .order("id", { ascending: true });
+
+        if (variantImagesResult.error) {
+          if (!isMissingSchemaObject(variantImagesResult.error, "product_variant_images")) {
+            console.error("product_variant_images query failed", variantImagesResult.error);
+          }
+        } else {
+          variantImages = (variantImagesResult.data ?? []) as Array<Record<string, unknown>>;
+        }
+      }
+
+      const productImagesByProduct = new Map<number, Array<Record<string, unknown>>>();
+      for (const image of productImages) {
+        const productId = Number(image.product_id);
+        if (!Number.isInteger(productId)) continue;
+        const list = productImagesByProduct.get(productId) ?? [];
+        list.push(image);
+        productImagesByProduct.set(productId, list);
+      }
+
+      const variantImagesByVariant = new Map<number, Array<Record<string, unknown>>>();
+      for (const image of variantImages) {
+        const variantId = Number(image.variant_id);
+        if (!Number.isInteger(variantId)) continue;
+        const list = variantImagesByVariant.get(variantId) ?? [];
+        list.push(image);
+        variantImagesByVariant.set(variantId, list);
+      }
+
+      const variantsByProduct = new Map<number, Array<Record<string, unknown>>>();
+      for (const variant of variants) {
+        const variantId = Number(variant.id);
+        const variantImageItems = (variantImagesByVariant.get(variantId) ?? []).map((image) => {
+          const ref = resolveImageRef(image.storage_path, image.url);
+          return {
+            id: image.id,
+            path: ref.path,
+            url: ref.url,
+            alt: typeof image.alt === "string" ? image.alt : null,
+            position: Number(image.position) || 1,
+          };
+        });
+
+        const variantMain = resolveImageRef(
+          variant.main_image_path,
+          variantImageItems[0]?.path,
+          variantImageItems[0]?.url,
+        );
+
+        const productId = Number(variant.product_id);
+        if (!Number.isInteger(productId)) continue;
+        const list = variantsByProduct.get(productId) ?? [];
+        list.push({
+          id: variant.id,
+          product_id: variant.product_id,
+          name: variant.name,
+          slug: variant.slug,
+          sku: variant.sku ?? null,
+          description: variant.description ?? null,
+          price: variant.price,
+          currency: variant.currency ?? "MAD",
+          sort_order: Number(variant.sort_order) || 1,
+          attributes: variant.attributes ?? {},
+          is_active: variant.is_active !== false,
+          main_image_path: variantMain.path,
+          main_image_url: variantMain.url,
+          images: variantImageItems,
+        });
+        variantsByProduct.set(productId, list);
+      }
+
+      const items = products.map((product) => {
+        const productId = Number(product.id);
+        const categoryId = Number(product.category_id);
+        const productImageItems = (productImagesByProduct.get(productId) ?? []).map((image) => {
+          const ref = resolveImageRef(image.storage_path, image.url);
+          return {
+            id: image.id,
+            path: ref.path,
+            url: ref.url,
+            alt: typeof image.alt === "string" ? image.alt : null,
+            position: Number(image.position) || 1,
+          };
+        });
+        const productVariants = variantsByProduct.get(productId) ?? [];
+        const productMain = resolveImageRef(
+          product.main_image_path,
+          product.main_image_url,
+          productVariants[0]?.main_image_path,
+          productVariants[0]?.main_image_url,
+          productImageItems[0]?.path,
+          productImageItems[0]?.url,
+        );
+        const category = Number.isInteger(categoryId) ? categoriesById.get(categoryId) ?? null : null;
+
+        return {
+          id: product.id,
+          name: product.name,
+          slug: product.slug,
+          description: product.description ?? null,
+          price: product.price,
+          currency: product.currency ?? "MAD",
+          popularity: Number(product.popularity) || 0,
+          category_id: Number.isInteger(categoryId) ? categoryId : null,
+          category,
+          tags: Array.isArray(product.tags) ? product.tags : [],
+          attributes: product.attributes ?? {},
+          is_active: product.is_active !== false,
+          main_image_path: productMain.path,
+          main_image_url: productMain.url,
+          images: productImageItems,
+          variants: productVariants,
+        };
+      });
+
+      return withCors(req, jsonResponse({ ok: true, count: items.length, items }, { status: 200 }));
     }
 
     // Leads (public)

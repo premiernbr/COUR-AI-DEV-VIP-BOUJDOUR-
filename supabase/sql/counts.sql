@@ -10,4 +10,6 @@ union all select 'admin_audit_logs', count(*)::bigint from public.admin_audit_lo
 union all select 'categories', count(*)::bigint from public.categories
 union all select 'products', count(*)::bigint from public.products
 union all select 'product_images', count(*)::bigint from public.product_images
+union all select 'product_variants', count(*)::bigint from public.product_variants
+union all select 'product_variant_images', count(*)::bigint from public.product_variant_images
 order by table_name;

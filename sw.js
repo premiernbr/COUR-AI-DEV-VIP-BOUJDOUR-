@@ -1,6 +1,6 @@
-const STATIC_CACHE = 'jd-static-v5';
-const DYNAMIC_CACHE = 'jd-dynamic-v5';
-const API_CACHE = 'jd-api-v2';
+const STATIC_CACHE = 'jd-static-v6';
+const DYNAMIC_CACHE = 'jd-dynamic-v6';
+const API_CACHE = 'jd-api-v3';
 
 const STATIC_ASSETS = [
   './',
@@ -75,8 +75,9 @@ self.addEventListener('fetch', (event) => {
   const isImage = /\.(png|jpe?g|gif|webp|svg)$/i.test(url.pathname);
 
   if (isStatic) {
+    const isCodeAsset = /\.(js|css)$/i.test(url.pathname);
     event.respondWith(
-      caches.match(request).then((cached) => cached || fetch(request))
+      isCodeAsset ? staleWhileRevalidate(request, STATIC_CACHE) : caches.match(request).then((cached) => cached || fetch(request))
     );
     return;
   }

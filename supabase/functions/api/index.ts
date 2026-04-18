@@ -232,8 +232,27 @@ Deno.serve(async (req) => {
       : afterPrefix;
 
     // keep a very simple ping route
-    if (req.method === "GET" && (routePath === "/api" || routePath === "/v1" || routePath === "/v1/health" || routePath === "/health")) {
-      return withCors(req, jsonResponse({ ok: true, function: "api", service: "supabase-edge" }, { status: 200 }));
+    if (
+      req.method === "GET" &&
+      (routePath === "" ||
+        routePath === "/" ||
+        routePath === "/api" ||
+        routePath === "/v1" ||
+        routePath === "/v1/health" ||
+        routePath === "/health")
+    ) {
+      return withCors(
+        req,
+        jsonResponse(
+          {
+            ok: true,
+            function: "api",
+            service: "supabase-edge",
+            hint: "Use /api/v1/... from the frontend (or /v1/... inside this function).",
+          },
+          { status: 200 },
+        ),
+      );
     }
 
     if (!routePath.startsWith("/v1/")) {

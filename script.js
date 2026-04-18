@@ -411,7 +411,18 @@ async function sendOrder(e) {
     });
 
     if (!res.ok) {
-      throw new Error('Save request failed');
+      const data = await res.json().catch(() => null);
+      const code = (data && (data.error || data.code)) ? String(data.error || data.code) : '';
+      const message = data && data.message ? String(data.message) : '';
+
+      const friendly =
+        code === 'INVALID_CAPTCHA' ? 'التحقق الأمني غير صحيح. أعد المحاولة.' :
+        code === 'INVALID_PHONE' ? 'رقم الهاتف غير صحيح. تأكد من الرقم.' :
+        code === 'VALIDATION_ERROR' ? 'يرجى التحقق من الحقول المطلوبة.' :
+        message ? message :
+        `تعذر الحفظ (HTTP ${res.status}).`;
+
+      throw new Error(friendly);
     }
 
     setModalContent('تم إرسال طلبك بنجاح!', 'تم حفظ الطلب وسيتواصل معكم فريقنا خلال 24 ساعة.');
@@ -424,7 +435,8 @@ async function sendOrder(e) {
     toggleSuccessModal(true);
   } catch (err) {
     console.error(err);
-    setModalContent('تعذر إرسال الطلب', 'حدث خطأ أثناء الحفظ. حاول مرة أخرى أو تواصل معنا عبر الهاتف/واتساب.');
+    const details = err && err.message ? String(err.message) : 'حدث خطأ أثناء الحفظ. حاول مرة أخرى أو تواصل معنا عبر الهاتف/واتساب.';
+    setModalContent('تعذر إرسال الطلب', details);
     btn.innerHTML = '<i class="fas fa-paper-plane"></i> إرسال الطلب';
     btn.disabled = false;
     if (captchaEnabled && window.turnstile && turnstileWidgetId !== null) {

@@ -225,25 +225,30 @@ Deno.serve(async (req) => {
     // https://<project-ref>.supabase.co/functions/v1/api/v1/...
     const basePrefix = "/functions/v1/api";
     const afterPrefix = pathname.startsWith(basePrefix) ? pathname.slice(basePrefix.length) : pathname;
+    // Be tolerant to callers that accidentally include `/api` in JD_API_BASE:
+    // https://.../functions/v1/api + /api/v1/... => /functions/v1/api/api/v1/...
+    const routePath = afterPrefix.startsWith("/api/v1/")
+      ? `/v1/${afterPrefix.slice("/api/v1/".length)}`
+      : afterPrefix;
 
     // keep a very simple ping route
-    if (req.method === "GET" && (afterPrefix === "/api" || afterPrefix === "/v1" || afterPrefix === "/v1/health" || afterPrefix === "/health")) {
+    if (req.method === "GET" && (routePath === "/api" || routePath === "/v1" || routePath === "/v1/health" || routePath === "/health")) {
       return withCors(req, jsonResponse({ ok: true, function: "api", service: "supabase-edge" }, { status: 200 }));
     }
 
-    if (!afterPrefix.startsWith("/v1/")) {
+    if (!routePath.startsWith("/v1/")) {
       return withCors(req, jsonResponse({ ok: false, error: "NOT_FOUND" }, { status: 404 }));
     }
 
     // Public config (captcha)
-    if (req.method === "GET" && afterPrefix === "/v1/public-config") {
+    if (req.method === "GET" && routePath === "/v1/public-config") {
       const enabled = (Deno.env.get("TURNSTILE_ENABLED") ?? "false").toLowerCase() === "true";
       const siteKey = Deno.env.get("TURNSTILE_SITE_KEY") ?? "";
       return withCors(req, jsonResponse({ ok: true, captcha: { enabled, provider: "turnstile", siteKey } }, { status: 200 }));
     }
 
     // Products
-    if (req.method === "GET" && afterPrefix === "/v1/products") {
+    if (req.method === "GET" && routePath === "/v1/products") {
       const limitRaw = url.searchParams.get("limit") ?? "30";
       const limit = Number.isFinite(Number(limitRaw)) ? Math.min(Math.max(Number(limitRaw), 1), 100) : 30;
 
@@ -263,7 +268,7 @@ Deno.serve(async (req) => {
     }
 
     // Leads (public)
-    if (req.method === "POST" && afterPrefix === "/v1/leads") {
+    if (req.method === "POST" && routePath === "/v1/leads") {
       const body = await readJsonBody(req);
       if (!body || typeof body !== "object") {
         return withCors(req, jsonResponse({ ok: false, error: "INVALID_JSON" }, { status: 400 }));
@@ -332,7 +337,7 @@ Deno.serve(async (req) => {
     // Admin API (matches admin.js)
     // =========================
 
-    if (req.method === "POST" && afterPrefix === "/v1/admin/auth/login") {
+    if (req.method === "POST" && routePath === "/v1/admin/auth/login") {
       await ensureSeedAdminUser();
       const body = await readJsonBody(req);
       const username = normalizeText(body?.username, 120);
@@ -445,7 +450,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    if (req.method === "POST" && afterPrefix === "/v1/admin/auth/refresh") {
+    if (req.method === "POST" && routePath === "/v1/admin/auth/refresh") {
       const body = await readJsonBody(req);
       const refreshToken = typeof body?.refreshToken === "string" ? body.refreshToken : "";
       if (!refreshToken) return withCors(req, jsonResponse({ ok: false, error: "VALIDATION_ERROR" }, { status: 400 }));
@@ -495,7 +500,7 @@ Deno.serve(async (req) => {
       return withCors(req, jsonResponse({ ok: true, accessToken, refreshToken: newRefreshToken }, { status: 200 }));
     }
 
-    if (req.method === "POST" && afterPrefix === "/v1/admin/auth/logout") {
+    if (req.method === "POST" && routePath === "/v1/admin/auth/logout") {
       const body = await readJsonBody(req);
       const refreshToken = typeof body?.refreshToken === "string" ? body.refreshToken : "";
       if (refreshToken) {
@@ -509,7 +514,7 @@ Deno.serve(async (req) => {
     }
 
     // Authenticated admin routes
-    if (afterPrefix.startsWith("/v1/admin/")) {
+    if (routePath.startsWith("/v1/admin/")) {
       const token = getBearerToken(req);
       if (!token) return withCors(req, jsonResponse({ ok: false, error: "UNAUTHORIZED" }, { status: 401 }));
       const payload = await verifyAccessToken(token);
@@ -519,7 +524,7 @@ Deno.serve(async (req) => {
         return withCors(req, jsonResponse({ ok: false, error: "UNAUTHORIZED" }, { status: 401 }));
       }
 
-      if (req.method === "GET" && afterPrefix === "/v1/admin/auth/me") {
+      if (req.method === "GET" && routePath === "/v1/admin/auth/me") {
         const { data: admin } = await supabase
           .from("admin_users")
           .select("id,username,role,is_active,two_factor_enabled,last_login_at")
@@ -531,7 +536,7 @@ Deno.serve(async (req) => {
         return withCors(req, jsonResponse({ ok: true, user: admin }, { status: 200 }));
       }
 
-      if (req.method === "GET" && afterPrefix === "/v1/admin/leads") {
+      if (req.method === "GET" && routePath === "/v1/admin/leads") {
         const statusParam = (url.searchParams.get("status") ?? "").trim();
         const query = supabase
           .from("leads")
@@ -571,7 +576,7 @@ Deno.serve(async (req) => {
         return withCors(req, jsonResponse({ ok: true, count: items.length, items }, { status: 200 }));
       }
 
-      const leadStatusMatch = afterPrefix.match(/^\/v1\/admin\/leads\/(\d+)\/status$/);
+      const leadStatusMatch = routePath.match(/^\/v1\/admin\/leads\/(\d+)\/status$/);
       if (req.method === "PATCH" && leadStatusMatch) {
         const leadId = Number(leadStatusMatch[1]);
         const body = await readJsonBody(req);
@@ -613,7 +618,7 @@ Deno.serve(async (req) => {
         return withCors(req, jsonResponse({ ok: true, id: updated.id, status: updated.status }, { status: 200 }));
       }
 
-      if (req.method === "GET" && afterPrefix === "/v1/admin/audit-logs") {
+      if (req.method === "GET" && routePath === "/v1/admin/audit-logs") {
         const limitRaw = url.searchParams.get("limit") ?? "50";
         const limit = Number.isFinite(Number(limitRaw)) ? Math.min(Math.max(Number(limitRaw), 1), 200) : 50;
         const { data, error } = await supabase
@@ -625,14 +630,14 @@ Deno.serve(async (req) => {
         return withCors(req, jsonResponse({ ok: true, count: data?.length ?? 0, items: data ?? [] }, { status: 200 }));
       }
 
-      if (req.method === "GET" && afterPrefix === "/v1/admin/auth/2fa/setup") {
+      if (req.method === "GET" && routePath === "/v1/admin/auth/2fa/setup") {
         const secret = authenticator.generateSecret();
         const otpauthUrl = authenticator.keyuri(payload.username, "jd-boujdour", secret);
         await writeAuditLog({ userId: adminUserId, action: "admin_2fa_setup_requested", req });
         return withCors(req, jsonResponse({ ok: true, secret, otpauthUrl }, { status: 200 }));
       }
 
-      if (req.method === "POST" && afterPrefix === "/v1/admin/auth/2fa/enable") {
+      if (req.method === "POST" && routePath === "/v1/admin/auth/2fa/enable") {
         const body = await readJsonBody(req);
         const secret = normalizeText(body?.secret, 256).replace(/\s+/g, "");
         const code = normalizeText(body?.code, 32).replace(/\s+/g, "");
@@ -650,7 +655,7 @@ Deno.serve(async (req) => {
         return withCors(req, jsonResponse({ ok: true }, { status: 200 }));
       }
 
-      if (req.method === "POST" && afterPrefix === "/v1/admin/auth/2fa/disable") {
+      if (req.method === "POST" && routePath === "/v1/admin/auth/2fa/disable") {
         const body = await readJsonBody(req);
         const code = normalizeText(body?.code, 32).replace(/\s+/g, "");
         if (!code) return withCors(req, jsonResponse({ ok: false, error: "VALIDATION_ERROR" }, { status: 400 }));

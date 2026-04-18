@@ -306,10 +306,17 @@ async function fetchLeads() {
   try {
     const res = await authorizedFetch(`/api/v1/admin/leads${filter}`);
     if (!res.ok) {
-      throw new Error("request_failed");
+      const err = await getErrorMessage(res);
+      if (res.status === 401 || res.status === 403) {
+        setAuthMessage("انتهت الجلسة. سجل الدخول مجددًا.", true);
+        clearTokens();
+        setAuthenticatedUI(false);
+      }
+      setMessage(`تعذر تحميل البيانات: ${err}`, true);
+      return;
     }
 
-    const data = await res.json();
+    const data = (await safeReadJson(res)) || {};
     renderRows(data.items || []);
     setMessage(`تم تحميل ${data.count || 0} طلب بنجاح.`);
   } catch (error) {
@@ -414,11 +421,26 @@ function renderAuditRows(items) {
 async function fetchAuditLogs() {
   try {
     const res = await authorizedFetch("/api/v1/admin/audit-logs?limit=30");
-    if (!res.ok) return;
-    const data = await res.json();
+    if (!res.ok) {
+      const err = await getErrorMessage(res);
+      if (res.status === 401 || res.status === 403) {
+        setAuthMessage("انتهت الجلسة. سجل الدخول مجددًا.", true);
+        clearTokens();
+        setAuthenticatedUI(false);
+      }
+      setMessage(`تعذر تحميل سجل التدقيق: ${err}`, true);
+      return;
+    }
+    const data = (await safeReadJson(res)) || {};
     renderAuditRows(data.items || []);
-  } catch {
-    // no-op
+  } catch (error) {
+    if (error.message === "Missing access token") {
+      setMessage("سجّل الدخول أولًا.", true);
+      setAuthMessage("انتهت الجلسة. سجل الدخول مجددًا.", true);
+      clearTokens();
+      setAuthenticatedUI(false);
+      return;
+    }
   }
 }
 

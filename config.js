@@ -5,4 +5,4 @@
 // Supabase Edge Functions example:
 // window.JD_API_BASE = "https://<project-ref>.supabase.co/functions/v1";
 
-window.JD_API_BASE = "https://nhdsppxrxturjgtpfxjx.supabase.co/functions/v1";
+window.JD_API_BASE = "https://nhdsppxrxturjgtpfxjx.supabase.co/functions/v1/api";

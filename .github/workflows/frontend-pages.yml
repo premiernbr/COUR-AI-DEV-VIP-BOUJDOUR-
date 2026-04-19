@@ -13,6 +13,7 @@ on:
       - "config.js"
       - "sw.js"
       - "manifest.json"
+      - "google*.html"
       - "vendor/**"
       - ".github/workflows/**"
   workflow_dispatch:
@@ -36,7 +37,7 @@ jobs:
       - name: Prepare site files
         run: |
           mkdir -p _site
-          cp index.html admin.html style.css admin.css script.js admin.js config.js sw.js manifest.json _site/
+          cp index.html admin.html style.css admin.css script.js admin.js config.js sw.js manifest.json googlef9932d09b67957dc.html _site/
           if [ -d "PNG" ]; then cp -r PNG _site/; fi
           if [ -d "vendor" ]; then cp -r vendor _site/; fi
 

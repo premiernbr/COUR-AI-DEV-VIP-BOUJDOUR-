@@ -1,18 +1,10 @@
-const STATIC_CACHE = 'jd-static-v7';
-const DYNAMIC_CACHE = 'jd-dynamic-v7';
-const API_CACHE = 'jd-api-v4';
+const STATIC_CACHE = 'jd-static-v8';
+const DYNAMIC_CACHE = 'jd-dynamic-v8';
+const API_CACHE = 'jd-api-v5';
 
 const STATIC_ASSETS = [
-  './',
-  './index.html',
-  './style.css',
-  './script.js',
-  './admin.js',
-  './admin.html',
-  './admin.css',
   './vendor/qrcode.min.js',
-  './manifest.json',
-  './sw.js'
+  './manifest.json'
 ];
 
 function getScopeBasePath() {
@@ -66,27 +58,31 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(request.url);
   const scopeBase = getScopeBasePath();
+  const accept = request.headers.get('accept') || '';
   const isSameOrigin = url.origin === self.location.origin;
   const pathname = isSameOrigin && url.pathname.startsWith(scopeBase) ? url.pathname.slice(scopeBase.length - 1) : url.pathname;
+  const isHtml = request.mode === 'navigate' || accept.includes('text/html');
 
   const isStatic = isSameOrigin && STATIC_ASSETS.map(toScopedPath).includes(url.pathname);
   const isConfig = isSameOrigin && url.pathname === toScopedPath('./config.js');
   const isPublicConfig = pathname.includes('/api/v1/public-config');
   const isProductsApi = pathname.includes('/api/v1/products');
   const isImage = /\.(png|jpe?g|gif|webp|svg)$/i.test(url.pathname);
+  const isCodeAsset = isSameOrigin && /\.(js|css)$/i.test(url.pathname);
 
-  if (isStatic) {
-    const isCodeAsset = /\.(js|css)$/i.test(url.pathname);
-    event.respondWith(
-      isCodeAsset ? staleWhileRevalidate(request, STATIC_CACHE) : caches.match(request).then((cached) => cached || fetch(request))
-    );
+  if (isHtml) {
+    event.respondWith(networkFirst(request, DYNAMIC_CACHE));
     return;
   }
 
-  // Do not hard-cache runtime config. Always prefer the network.
-  if (isConfig) {
+  if (isConfig || isCodeAsset) {
+    event.respondWith(networkFirst(request, DYNAMIC_CACHE));
+    return;
+  }
+
+  if (isStatic) {
     event.respondWith(
-      fetch(request).catch(() => caches.match(request))
+      caches.match(request).then((cached) => cached || fetch(request))
     );
     return;
   }
@@ -143,6 +139,21 @@ function staleWhileRevalidate(request, cacheName) {
       return cached || networkFetch;
     })
   );
+}
+
+async function networkFirst(request, cacheName) {
+  const cache = await caches.open(cacheName);
+  try {
+    const response = await fetch(request);
+    if (response && response.ok) {
+      await cache.put(request, response.clone());
+    }
+    return response;
+  } catch {
+    const cached = await cache.match(request);
+    if (cached) return cached;
+    throw new Error(`Network unavailable for ${request.url}`);
+  }
 }
 
 async function staleWhileRevalidateJson(request, cacheName) {

@@ -75,3 +75,67 @@ powershell -ExecutionPolicy Bypass -File scripts/smoke.ps1
   - `products/<product-slug>/variants/<variant-slug>/cover.webp`
   - `products/<product-slug>/variants/<variant-slug>/gallery/01.webp`
 
+
+---
+
+## Search Visibility / SEO / Google Search Readiness
+
+This project can be connected to Google Search Console and prepared for better visibility in search engines.
+
+The repository may include a Google site verification file, such as:
+
+- `googlef9932d09b67957dc.html`
+
+The frontend can also be improved for search visibility through:
+
+- Clear Arabic page title
+- Strong meta description
+- Open Graph tags for social sharing
+- Descriptive content on the homepage
+- Search-friendly public URL
+- Sitemap support in future versions
+- Structured data support in future versions
+
+This does not guarantee first-page ranking, but it helps search engines understand the website and display it more clearly when users search for it.
+
+Recommended production steps:
+
+- Verify the site in Google Search Console.
+- Submit the live GitHub Pages URL.
+- Add a `sitemap.xml` if the project grows beyond one page.
+- Keep page titles and descriptions accurate.
+- Avoid fake or exaggerated marketing claims.
+- Use structured data only when it truly matches the page content.
+
+
+---
+
+## Open Source License
+
+This project is published under the MIT License.
+
+Developers may use, modify, distribute, and adapt the project for other local or commercial activities, provided that the license notice is preserved.
+
+Before production use, developers should review `SECURITY.md` and configure their own Supabase and GitHub secrets.
+
+
+---
+
+## QR Library: Local instead of CDN
+
+For final production, it is recommended to keep the QR library local inside the project instead of loading it from an external CDN.
+
+This project can use:
+
+- `vendor/qrcode.min.js`
+- `vendor/qrcodejs.LICENSE.txt`
+
+Why local QR is recommended:
+
+- Better privacy
+- Less dependency on external services
+- Lower risk if a CDN becomes unavailable
+- Better self-contained production delivery
+
+When using a local QR library, keep its license file inside `vendor/`.
+
